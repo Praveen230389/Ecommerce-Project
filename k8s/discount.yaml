@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: discount-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: discount-service
+  template:
+    metadata:
+      labels:
+        app: discount-service
+    spec:
+      containers:
+      - name: discount-service
+        image: praveen230389/discount-service:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 3014
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: discount-service
+spec:
+  selector:
+    app: discount-service
+  ports:
+    - protocol: TCP
+      port: 3014
+      targetPort: 3014
+  type: ClusterIP

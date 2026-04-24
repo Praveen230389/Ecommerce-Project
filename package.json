@@ -1,0 +1,14 @@
+{
+  "name": "enterprise-microservices",
+  "version": "1.0.0",
+  "scripts": {
+    "start": "concurrently \"node api-gateway/src/index.js\" \"node auth-service/src/index.js\" \"node user-service/src/index.js\" \"node product-service/src/index.js\" \"node cart-service/src/index.js\" \"node order-service/src/index.js\" \"node payment-service/src/index.js\" \"node inventory-service/src/index.js\" \"node notification-service/src/index.js\" \"node review-service/src/index.js\" \"node wishlist-service/src/index.js\" \"node search-service/src/index.js\" \"node shipping-service/src/index.js\" \"node recommendation-service/src/index.js\" \"node discount-service/src/index.js\" \"node analytics-service/src/index.js\"",
+    "dev": "npm start"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "http-proxy-middleware": "^2.0.6",
+    "concurrently": "^8.2.2"
+  }
+}

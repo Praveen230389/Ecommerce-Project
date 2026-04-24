@@ -1,0 +1,5 @@
+{
+  "name": "E-Commerce Microservices",
+  "description": "DevSecOps practice microservices architecture with Jenkinsfiles, Dockerfiles, and K8s manifests.",
+  "requestFramePermissions": []
+}

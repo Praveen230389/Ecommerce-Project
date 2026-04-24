@@ -1,0 +1,162 @@
+version: '3.8'
+services:
+  api-gateway:
+    build:
+      context: ./api-gateway
+    container_name: api-gateway
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+    depends_on:
+      - auth-service
+      - user-service
+      - product-service
+      - cart-service
+      - order-service
+      - payment-service
+      - inventory-service
+      - notification-service
+      - review-service
+      - wishlist-service
+      - search-service
+      - shipping-service
+      - recommendation-service
+      - discount-service
+      - analytics-service
+
+  auth-service:
+    build:
+      context: ./auth-service
+    container_name: auth-service
+    ports:
+      - "3001:3001"
+    environment:
+      - PORT=3001
+
+  user-service:
+    build:
+      context: ./user-service
+    container_name: user-service
+    ports:
+      - "3002:3002"
+    environment:
+      - PORT=3002
+
+  product-service:
+    build:
+      context: ./product-service
+    container_name: product-service
+    ports:
+      - "3003:3003"
+    environment:
+      - PORT=3003
+
+  cart-service:
+    build:
+      context: ./cart-service
+    container_name: cart-service
+    ports:
+      - "3004:3004"
+    environment:
+      - PORT=3004
+
+  order-service:
+    build:
+      context: ./order-service
+    container_name: order-service
+    ports:
+      - "3005:3005"
+    environment:
+      - PORT=3005
+
+  payment-service:
+    build:
+      context: ./payment-service
+    container_name: payment-service
+    ports:
+      - "3006:3006"
+    environment:
+      - PORT=3006
+
+  inventory-service:
+    build:
+      context: ./inventory-service
+    container_name: inventory-service
+    ports:
+      - "3007:3007"
+    environment:
+      - PORT=3007
+
+  notification-service:
+    build:
+      context: ./notification-service
+    container_name: notification-service
+    ports:
+      - "3008:3008"
+    environment:
+      - PORT=3008
+
+  review-service:
+    build:
+      context: ./review-service
+    container_name: review-service
+    ports:
+      - "3009:3009"
+    environment:
+      - PORT=3009
+
+  wishlist-service:
+    build:
+      context: ./wishlist-service
+    container_name: wishlist-service
+    ports:
+      - "3010:3010"
+    environment:
+      - PORT=3010
+
+  search-service:
+    build:
+      context: ./search-service
+    container_name: search-service
+    ports:
+      - "3011:3011"
+    environment:
+      - PORT=3011
+
+  shipping-service:
+    build:
+      context: ./shipping-service
+    container_name: shipping-service
+    ports:
+      - "3012:3012"
+    environment:
+      - PORT=3012
+
+  recommendation-service:
+    build:
+      context: ./recommendation-service
+    container_name: recommendation-service
+    ports:
+      - "3013:3013"
+    environment:
+      - PORT=3013
+
+  discount-service:
+    build:
+      context: ./discount-service
+    container_name: discount-service
+    ports:
+      - "3014:3014"
+    environment:
+      - PORT=3014
+
+  analytics-service:
+    build:
+      context: ./analytics-service
+    container_name: analytics-service
+    ports:
+      - "3015:3015"
+    environment:
+      - PORT=3015
+
