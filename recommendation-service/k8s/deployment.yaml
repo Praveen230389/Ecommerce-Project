@@ -1,1 +1,25 @@
-apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: recommendation-service\nspec:\n  replicas: 2\n  selector:\n    matchLabels:\n      app: recommendation-service\n  template:\n    metadata:\n      labels:\n        app: recommendation-service\n    spec:\n      containers:\n      - name: recommendation-service\n        image: myregistry/recommendation-service:latest\n        ports:\n        - containerPort: 3013
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: recommendation-service
+
+spec:
+  replicas: 2
+
+  selector:
+    matchLabels:
+      app: recommendation-service
+
+  template:
+    metadata:
+      labels:
+        app: recommendation-service
+
+    spec:
+      containers:
+      - name: recommendation-service
+        image: praveen230389/recommendation-service:latest
+
+        ports:
+        - containerPort: 3009

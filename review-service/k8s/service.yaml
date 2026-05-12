@@ -1,1 +1,16 @@
-apiVersion: v1\nkind: Service\nmetadata:\n  name: review-service\nspec:\n  type: ClusterIP\n  selector:\n    app: review-service\n  ports:\n    - protocol: TCP\n      port: 3009\n      targetPort: 3009
+apiVersion: v1
+kind: Service
+
+metadata:
+  name: review-service
+
+spec:
+  selector:
+    app: review-service
+
+  ports:
+  - protocol: TCP
+    port: 3010
+    targetPort: 3010
+
+  type: ClusterIP

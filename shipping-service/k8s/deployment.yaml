@@ -1,1 +1,25 @@
-apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: shipping-service\nspec:\n  replicas: 2\n  selector:\n    matchLabels:\n      app: shipping-service\n  template:\n    metadata:\n      labels:\n        app: shipping-service\n    spec:\n      containers:\n      - name: shipping-service\n        image: myregistry/shipping-service:latest\n        ports:\n        - containerPort: 3012
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: shipping-service
+
+spec:
+  replicas: 2
+
+  selector:
+    matchLabels:
+      app: shipping-service
+
+  template:
+    metadata:
+      labels:
+        app: shipping-service
+
+    spec:
+      containers:
+      - name: shipping-service
+        image: praveen230389/shipping-service:latest
+
+        ports:
+        - containerPort: 3012

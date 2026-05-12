@@ -1,1 +1,25 @@
-apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: wishlist-service\nspec:\n  replicas: 2\n  selector:\n    matchLabels:\n      app: wishlist-service\n  template:\n    metadata:\n      labels:\n        app: wishlist-service\n    spec:\n      containers:\n      - name: wishlist-service\n        image: myregistry/wishlist-service:latest\n        ports:\n        - containerPort: 3010
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: wishlist-service
+
+spec:
+  replicas: 2
+
+  selector:
+    matchLabels:
+      app: wishlist-service
+
+  template:
+    metadata:
+      labels:
+        app: wishlist-service
+
+    spec:
+      containers:
+      - name: wishlist-service
+        image: praveen230389/wishlist-service:latest
+
+        ports:
+        - containerPort: 3014

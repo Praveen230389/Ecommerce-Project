@@ -1,1 +1,25 @@
-apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: cart-service\nspec:\n  replicas: 2\n  selector:\n    matchLabels:\n      app: cart-service\n  template:\n    metadata:\n      labels:\n        app: cart-service\n    spec:\n      containers:\n      - name: cart-service\n        image: myregistry/cart-service:latest\n        ports:\n        - containerPort: 3004
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: cart-service
+
+spec:
+  replicas: 2
+
+  selector:
+    matchLabels:
+      app: cart-service
+
+  template:
+    metadata:
+      labels:
+        app: cart-service
+
+    spec:
+      containers:
+      - name: cart-service
+        image: praveen230389/cart-service:latest
+
+        ports:
+        - containerPort: 3002

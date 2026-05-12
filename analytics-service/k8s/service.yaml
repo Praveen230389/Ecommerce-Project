@@ -1,1 +1,16 @@
-apiVersion: v1\nkind: Service\nmetadata:\n  name: analytics-service\nspec:\n  type: ClusterIP\n  selector:\n    app: analytics-service\n  ports:\n    - protocol: TCP\n      port: 3015\n      targetPort: 3015
+apiVersion: v1
+kind: Service
+
+metadata:
+  name: analytics-service
+
+spec:
+  selector:
+    app: analytics-service
+
+  ports:
+  - protocol: TCP
+    port: 3015
+    targetPort: 3015
+
+  type: ClusterIP

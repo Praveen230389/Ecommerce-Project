@@ -1,1 +1,25 @@
-apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: discount-service\nspec:\n  replicas: 2\n  selector:\n    matchLabels:\n      app: discount-service\n  template:\n    metadata:\n      labels:\n        app: discount-service\n    spec:\n      containers:\n      - name: discount-service\n        image: myregistry/discount-service:latest\n        ports:\n        - containerPort: 3014
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: discount-service
+
+spec:
+  replicas: 2
+
+  selector:
+    matchLabels:
+      app: discount-service
+
+  template:
+    metadata:
+      labels:
+        app: discount-service
+
+    spec:
+      containers:
+      - name: discount-service
+        image: praveen230389/discount-service:latest
+
+        ports:
+        - containerPort: 3003

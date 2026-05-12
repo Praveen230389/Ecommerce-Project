@@ -1,1 +1,25 @@
-apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: user-service\nspec:\n  replicas: 2\n  selector:\n    matchLabels:\n      app: user-service\n  template:\n    metadata:\n      labels:\n        app: user-service\n    spec:\n      containers:\n      - name: user-service\n        image: myregistry/user-service:latest\n        ports:\n        - containerPort: 3002
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: user-service
+
+spec:
+  replicas: 2
+
+  selector:
+    matchLabels:
+      app: user-service
+
+  template:
+    metadata:
+      labels:
+        app: user-service
+
+    spec:
+      containers:
+      - name: user-service
+        image: praveen230389/user-service:latest
+
+        ports:
+        - containerPort: 3013

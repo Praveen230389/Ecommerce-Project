@@ -1,1 +1,25 @@
-apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: analytics-service\nspec:\n  replicas: 2\n  selector:\n    matchLabels:\n      app: analytics-service\n  template:\n    metadata:\n      labels:\n        app: analytics-service\n    spec:\n      containers:\n      - name: analytics-service\n        image: myregistry/analytics-service:latest\n        ports:\n        - containerPort: 3015
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: analytics-service
+
+spec:
+  replicas: 2
+
+  selector:
+    matchLabels:
+      app: analytics-service
+
+  template:
+    metadata:
+      labels:
+        app: analytics-service
+
+    spec:
+      containers:
+      - name: analytics-service
+        image: praveen230389/analytics-service:latest
+
+        ports:
+        - containerPort: 3015

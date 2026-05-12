@@ -1,1 +1,16 @@
-apiVersion: v1\nkind: Service\nmetadata:\n  name: inventory-service\nspec:\n  type: ClusterIP\n  selector:\n    app: inventory-service\n  ports:\n    - protocol: TCP\n      port: 3007\n      targetPort: 3007
+apiVersion: v1
+kind: Service
+
+metadata:
+  name: inventory-service
+
+spec:
+  selector:
+    app: inventory-service
+
+  ports:
+  - protocol: TCP
+    port: 3004
+    targetPort: 3004
+
+  type: ClusterIP

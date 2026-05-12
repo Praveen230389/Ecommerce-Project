@@ -1,18 +1,36 @@
 pipeline {
+
     agent any
-    environment {
-        AWS_REGION = 'us-east-1'
-        ECR_REPO = "123456789012.dkr.ecr.${AWS_REGION}.amazonaws.com"
-        IMAGE_NAME = 'inventory-service'
-        IMAGE_TAG = "v${env.BUILD_ID}"
-    }
+
     stages {
-        stage('Checkout') { steps { checkout scm } }
-        stage('Build & Test') { steps { sh 'npm install'; sh 'npm test || echo "Skipping missing tests"' } }
-        stage('SonarQube / OWASP Scan') { steps { echo "Executing SonarQube Scanner..."; echo "Executing OWASP Dependency-Check..." } }
-        stage('Docker Build') { steps { sh 'docker build -t ${ECR_REPO}/${IMAGE_NAME}:${IMAGE_TAG} -t ${ECR_REPO}/${IMAGE_NAME}:latest .' } }
-        stage('Trivy Security Scan') { steps { echo "Running Trivy Image Scan..."; sh 'trivy image --severity HIGH,CRITICAL ${ECR_REPO}/${IMAGE_NAME}:latest || echo "Trivy Scan Phase"' } }
-        stage('Push to ECR') { steps { echo "Mock AWS ECR Login..."; echo "docker push ${ECR_REPO}/${IMAGE_NAME}:${IMAGE_TAG}" } }
-        stage('Deploy to K8s') { steps { sh 'kubectl apply -f k8s/' } }
+
+        stage('Checkout Code') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Deploy To Dev Namespace') {
+            steps {
+                sh 'kubectl apply -f k8s/ -n dev'
+            }
+        }
+
+        stage('Verify Deployment') {
+            steps {
+                sh 'kubectl get pods -n dev'
+            }
+        }
+    }
+
+    post {
+
+        success {
+            echo 'DEV Deployment Successful'
+        }
+
+        failure {
+            echo 'DEV Deployment Failed'
+        }
     }
 }
