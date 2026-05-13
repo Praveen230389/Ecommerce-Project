@@ -1,0 +1,199 @@
+pipeline {
+agent any
+tools {
+// Use the name of the Maven installation configured in Jenkins
+// Replace 'Maven_3' with the exact tool name in Jenkins if different
+maven 'Maven_3'
+}
+environment {
+SCANNER_HOME = tool 'sonar-scanner'
+AWS_ACCESS_KEY_ID = credentials('aws-access-key-id')
+AWS_SECRET_ACCESS_KEY = credentials('aws-secret-access-key')
+AWS_DEFAULT_REGION = 'us-east-1'
+JENKINS_SERVER_IP = '54.172.209.208' // fixed obvious typo 'G' -> '9' (verify)
+REMOTE_USER = 'ubuntu'
+SONAR_HOST_URL = 'http://18.207.214.112:9000' // fixed port guess (9000) — verify
+SONAR_AUTH_TOKEN = credentials('sonar-token')
+}
+stages {
+stage('Clean') {
+steps {
+cleanWs()
+}
+}
+stage('Git Checkout') {
+steps {
+git branch: 'master', url: 'https://github.com/Praveen23038G/maven-web-app-new.git'
+}
+}
+stage('Terraform Init') {
+steps {
+sh '''
+terraform init
+terraform validate
+terraform plan -out=tfplan
+terraform apply -auto-approve || true
+'''
+}
+}
+stage('Maven Compile') {
+steps {
+
+sh 'mvn -B compile'
+}
+}
+stage('Test') {
+steps {
+sh 'mvn -B test'
+}
+}
+stage('Trivy Scan') {
+steps {
+echo "Scanning repository filesystem for vulnerabilities..."
+sh "trivy fs --format table -o trivy-fs-report.html . || true"
+archiveArtifacts artifacts: 'trivy-fs-report.html', allowEmptyArchive: true
+}
+}
+stage('SonarQube Analysis') {
+steps {
+// This expects you have a Sonar config in Jenkins named 'sonar'
+withSonarQubeEnv('sonar') {
+sh """
+${SCANNER_HOME}/bin/sonar-scanner \
+-Dsonar.projectName=BoardGame \
+-Dsonar.projectKey=BoardGame \
+-Dsonar.host.url=${SONAR_HOST_URL} \
+-Dsonar.login=${SONAR_AUTH_TOKEN} \
+-Dsonar.java.binaries=.
+"""
+}
+}
+}
+stage('Quality Gate') {
+steps {
+script {
+// Wait for Sonar quality gate result; abort on failure
+def qg = waitForQualityGate()
+if (qg.status != 'OK') {
+error "Quality Gate failed: ${qg.status}"
+}
+}
+}
+}
+stage('Build') {
+steps {
+sh 'mvn -B package -DskipTests'
+}
+
+}
+stage('Publish To Nexus') {
+steps {
+// withMaven will use global settings and Maven tool; replace config names as needed
+withMaven(globalMavenSettingsConfig: 'global-settings', maven: 'Maven_3') {
+sh 'mvn -B deploy -DskipTests'
+}
+}
+}
+stage('Docker Image Build') {
+steps {
+script {
+// build image
+withDockerRegistry(credentialsId: 'docker-cred', url: '') {
+sh 'docker build -t praveen23038g/ashokit-maven-web-app:latest .'
+}
+}
+}
+}
+stage('Trivy Image Scan') {
+steps {
+echo "Scanning Docker image for vulnerabilities..."
+// allow non-zero exit but keep report
+sh "trivy image --scanners vuln praveen23038g/ashokit-maven-web-app:latest > trivy-image-report.txt || true"
+archiveArtifacts artifacts: 'trivy-image-report.txt', allowEmptyArchive: true
+}
+}
+stage('Docker Push Image') {
+steps {
+script {
+withDockerRegistry(credentialsId: 'docker-cred', url: '') {
+sh 'docker push praveen23038g/ashokit-maven-web-app:latest'
+}
+}
+}
+}
+stage('Execute Ansible Playbook') {
+steps {
+// ansiblePlaybook step requires Ansible plugin and a configured installation named 'ansible'
+ansiblePlaybook credentialsId: 'ansible',
+disableHostKeyChecking: true,
+installation: 'ansible',
+inventory: '/etc/ansible/hosts',
+playbook: "${env.WORKSPACE}/playbook.yml"
+}
+
+}
+stage('Kubernetes Deployment') {
+steps {
+// withKubeConfig requires Kubernetes CLI Plugin (or similar) and a credential that provides kubeconfig/token
+withKubeConfig(credentialsId: 'k8s-token', serverUrl: 'https://172.31.176.73:6443', namespace: 'webapps') {
+sh 'kubectl apply -f k8s-deploy.yml -n webapps || true'
+sh 'sleep 30'
+}
+}
+}
+stage('Verify Deployment') {
+steps {
+withKubeConfig(credentialsId: 'k8s-token', serverUrl: 'https://172.31.176.73:6443', namespace: 'webapps') {
+sh 'kubectl get pods -n webapps --show-labels'
+sh 'kubectl get svc -n webapps'
+}
+}
+}
+stage('OWASP ZAP Scan') {
+steps {
+sh '''
+docker run --rm -v $(pwd):/zap/wrk/:rw owasp/zap2docker-stable zap-baseline.py \
+-t http://myapp-url.com -r zap_report.html || true
+'''
+}
+post {
+always {
+archiveArtifacts artifacts: 'zap_report.html', allowEmptyArchive: true
+}
+}
+}
+} // end stages
+post {
+always {
+script {
+def jobName = env.JOB_NAME
+def buildNumber = env.BUILD_NUMBER
+def pipelineStatus = currentBuild.currentResult ?: 'UNKNOWN'
+def bannerColor = pipelineStatus.toUpperCase() == 'SUCCESS' ? 'green' : 'red'
+def body = """
+<html>
+<body>
+<div style="border: 4px solid ${bannerColor}; padding: 10px;">
+<h2>${jobName} - Build ${buildNumber}</h2>
+
+<div style="background-color: ${bannerColor}; padding: 10px;">
+<h3 style="color: white;">Pipeline Status: ${pipelineStatus.toUpperCase()}</h3>
+</div>
+<p>Check the <a href="${env.BUILD_URL}">console output</a>.</p>
+</div>
+</body>
+</html>
+"""
+// Send email via Email Extension plugin (ensure configured)
+emailext(
+subject: "${jobName} - Build ${buildNumber} - ${pipelineStatus.toUpperCase()}",
+body: body,
+to: 'jaiswaladi246@gmail.com',
+from: 'jenkins@example.com',
+replyTo: 'jenkins@example.com',
+mimeType: 'text/html',
+attachmentsPattern: 'trivy-image-report.txt,trivy-fs-report.html'
+)
+}
+}
+}
