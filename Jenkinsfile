@@ -4,7 +4,7 @@ pipeline {
 
     environment {
 
-        NAMESPACE = "main"
+        NAMESPACE = "prod"
     }
 
     stages {
