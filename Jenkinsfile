@@ -27,19 +27,7 @@ pipeline {
                         "analytics-service",
                         "api-gateway",
                         "auth-service",
-                        "cart-service",
-                        "discount-service",
-                        "inventory-service",
-                        "notification-service",
-                        "order-service",
-                        "payment-service",
-                        "product-service",
-                        "recommendation-service",
-                        "review-service",
-                        "search-service",
-                        "shipping-service",
-                        "user-service",
-                        "wishlist-service",                      
+                        "cart-service",                      
                     ]
 
                     for (service in services) {
