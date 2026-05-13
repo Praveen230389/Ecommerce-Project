@@ -27,7 +27,7 @@ pipeline {
                         "analytics-service",
                         "api-gateway",
                         "auth-service",
-                        "cart-service",                      
+                        "cart-service"                      
                     ]
 
                     for (service in services) {
