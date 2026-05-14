@@ -1,0 +1,20 @@
+---
+
+- name: Update apt packages
+  apt:
+    update_cache: yes
+
+- name: Install common utilities
+  apt:
+    name:
+      - curl
+      - wget
+      - unzip
+      - git
+      - vim
+      - htop
+      - net-tools
+    state: present
+
+- name: Disable swap
+  shell: swapoff -a
