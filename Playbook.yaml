@@ -1,5 +1,5 @@
 ---
-- name: Common Configuration
+- name: Basic Server Setup
   hosts: all
   become: yes
 
@@ -8,28 +8,6 @@
     - name: Update packages
       apt:
         update_cache: yes
-
-    - name: Install common packages
-      apt:
-        name:
-          - curl
-          - wget
-          - unzip
-          - git
-          - vim
-          - htop
-        state: present
-
-    - name: Disable swap
-      shell: swapoff -a
-
-#########################################################
-
-- name: Install Docker
-  hosts: all
-  become: yes
-
-  tasks:
 
     - name: Install Docker
       apt:
@@ -42,81 +20,20 @@
         state: started
         enabled: yes
 
-#########################################################
-
-- name: Install Kubernetes Tools
-  hosts: k8s_master,k8s_workers
-  become: yes
-
-  tasks:
-
-    - name: Install dependencies
-      apt:
-        name:
-          - apt-transport-https
-          - ca-certificates
-        state: present
-
-    - name: Add Kubernetes repo
-      shell: |
-        curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.29/deb/Release.key | \
-        gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
-
-        echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] \
-        https://pkgs.k8s.io/core:/stable:/v1.29/deb/ /' \
-        > /etc/apt/sources.list.d/kubernetes.list
-
-    - name: Update apt
-      apt:
-        update_cache: yes
-
-    - name: Install kubeadm kubelet kubectl
-      apt:
-        name:
-          - kubelet
-          - kubeadm
-          - kubectl
-        state: present
-
-#########################################################
-
-- name: Configure Jenkins Server
-  hosts: jenkins
-  become: yes
-
-  tasks:
-
-    - name: Install Java
-      apt:
-        name: openjdk-21-jdk
-        state: present
-
     - name: Install NodeJS
       shell: |
         curl -fsSL https://deb.nodesource.com/setup_18.x | bash -
         apt install -y nodejs
 
-    - name: Install Maven
+    - name: Install kubectl
       apt:
-        name: maven
+        name: kubectl
         state: present
 
     - name: Install Trivy
       shell: |
+        apt install wget apt-transport-https gnupg lsb-release -y
         wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | apt-key add -
-        echo deb https://aquasecurity.github.io/trivy-repo/deb generic main | tee -a /etc/apt/sources.list.d/trivy.list
+        echo deb https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -sc) main | tee /etc/apt/sources.list.d/trivy.list
         apt update
         apt install trivy -y
-
-#########################################################
-
-- name: Initialize Kubernetes Master
-  hosts: k8s_master
-  become: yes
-
-  tasks:
-
-    - name: Initialize cluster
-      shell: |
-        kubeadm init --pod-network-cidr=192.168.0.0/16
-      ignore_errors: yes
