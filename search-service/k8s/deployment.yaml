@@ -3,6 +3,7 @@ kind: Deployment
 
 metadata:
   name: search-service
+  namespaces: dev
 
 spec:
   replicas: 2
