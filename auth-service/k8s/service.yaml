@@ -3,6 +3,7 @@ kind: Service
 
 metadata:
   name: auth-service
+  namespaces: dev
 
 spec:
   selector:
