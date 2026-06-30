@@ -3,6 +3,7 @@ kind: Deployment
 
 metadata:
   name: api-gateway
+  namespaces: dev
 
 spec:
   replicas: 2
