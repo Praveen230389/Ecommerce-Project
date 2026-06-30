@@ -3,6 +3,7 @@ kind: Deployment
 
 metadata:
   name: payment-service
+  namespaces: dev
 
 spec:
   replicas: 2
