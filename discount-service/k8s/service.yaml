@@ -3,6 +3,7 @@ kind: Service
 
 metadata:
   name: discount-service
+  namespaces: dev
 
 spec:
   selector:
