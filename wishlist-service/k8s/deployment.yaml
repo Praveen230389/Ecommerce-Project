@@ -3,6 +3,7 @@ kind: Deployment
 
 metadata:
   name: wishlist-service
+  namespaces: dev
 
 spec:
   replicas: 2
