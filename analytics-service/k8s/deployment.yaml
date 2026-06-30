@@ -3,6 +3,7 @@ kind: Deployment
 
 metadata:
   name: analytics-service
+  namespaces: dev
 
 spec:
   replicas: 2
