@@ -3,6 +3,7 @@ kind: Service
 
 metadata:
   name: inventory-service
+  namespaces: dev
 
 spec:
   selector:
