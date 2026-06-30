@@ -3,6 +3,7 @@ kind: Deployment
 
 metadata:
   name: auth-service
+  namespaces: dev
 
 spec:
   replicas: 2
