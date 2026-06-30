@@ -3,6 +3,7 @@ kind: Service
 
 metadata:
   name: analytics-service
+  namespaces: dev
 
 spec:
   selector:
