@@ -3,6 +3,7 @@ kind: Service
 
 metadata:
   name: wishlist-service
+  namespaces: dev
 
 spec:
   selector:
