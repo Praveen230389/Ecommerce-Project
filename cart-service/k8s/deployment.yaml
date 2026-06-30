@@ -3,6 +3,7 @@ kind: Deployment
 
 metadata:
   name: cart-service
+  namespaces: dev
 
 spec:
   replicas: 2
