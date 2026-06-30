@@ -3,6 +3,7 @@ kind: Service
 
 metadata:
   name: search-service
+  namespaces: dev
 
 spec:
   selector:
