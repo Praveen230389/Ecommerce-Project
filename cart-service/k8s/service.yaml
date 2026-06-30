@@ -3,6 +3,7 @@ kind: Service
 
 metadata:
   name: cart-service
+  namespaces: dev
 
 spec:
   selector:
