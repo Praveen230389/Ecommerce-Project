@@ -3,6 +3,7 @@ kind: Deployment
 
 metadata:
   name: review-service
+  namespaces: dev
 
 spec:
   replicas: 2
