@@ -3,6 +3,7 @@ kind: Service
 
 metadata:
   name: recommendation-service
+  namespaces: dev
 
 spec:
   selector:
