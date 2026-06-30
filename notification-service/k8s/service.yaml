@@ -3,6 +3,7 @@ kind: Service
 
 metadata:
   name: notification-service
+  namespaces: dev
 
 spec:
   selector:
