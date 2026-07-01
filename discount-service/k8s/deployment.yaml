@@ -1,26 +1,61 @@
+# ==========================================
+# 1. THE DEPLOYMENT CONFIGURATION (Pods)
+# ==========================================
 apiVersion: apps/v1
 kind: Deployment
-
 metadata:
-  name: discount-service
-  namespaces: dev
-
+  name: ${SERVICE_NAME}
+  namespace: qa  # तुम्हारी टेस्टिंग ब्रांच के लिए QA एनवायरनमेंट
+  labels:
+    app: ${SERVICE_NAME}
 spec:
-  replicas: 2
-
+  replicas: 2  # High Availability के लिए कम से कम 2 रेप्लिका कंपनियों का स्टैंडर्ड है
+  strategy:
+    type: RollingUpdate  # Zero-Downtime डिप्लॉयमेंट के लिए
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
   selector:
     matchLabels:
-      app: discount-service
-
+      app: ${SERVICE_NAME}
   template:
     metadata:
       labels:
-        app: discount-service
-
+        app: ${SERVICE_NAME}
     spec:
       containers:
-      - name: discount-service
-        image: praveen230389/discount-service:latest
-
+      - name: ${SERVICE_NAME}
+        # जेनकिंस रनटाइम पर इस ${IMAGE_TAG} को AWS ECR के असली टैग से बदल देगा
+        image: ${ECR_REGISTRY}/${SERVICE_NAME}:${IMAGE_TAG}
+        imagePullPolicy: Always
         ports:
-        - containerPort: 3003
+        - containerPort: 8080  # हमारी Dockerfile का इंटरनल पोर्ट 8080 था, तो कूबरनेटीस में भी यही रहेगा
+        
+        # इंटरव्यू बोनस: रिसोर्स लिमिट्स (इसके बिना इंटरव्यूअर रिजेक्ट कर देते हैं)
+        resources:
+          limits:
+            cpu: "500m"
+            memory: "512Mi"
+          requests:
+            cpu: "250m"
+            memory: "256Mi"
+
+---
+# ==========================================
+# 2. THE SERVICE CONFIGURATION (Internal Network)
+# ==========================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: ${SERVICE_NAME}
+  namespace: qa
+  labels:
+    app: ${SERVICE_NAME}
+spec:
+  type: ClusterIP  # सुरक्षित इंटरनल नेटवर्किंग, यह बाहर इंटरनेट पर एक्सपोज्ड नहीं होगी
+  selector:
+    app: ${SERVICE_NAME}
+  ports:
+  - protocol: TCP
+    port: 80        # बाहरी सर्विस पोर्ट
+    targetPort: 8080 # हमारे कंटेनर का पोर्ट
