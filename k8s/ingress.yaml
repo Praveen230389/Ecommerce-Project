@@ -1,19 +1,44 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: ecommerce-ingress
+  name: ecommerce-alb-ingress
+  namespace: production
   annotations:
-    nginx.ingress.kubernetes.io/rewrite-target: /
+    # ये Annotations एडब्ल्यूएस को बताते हैं कि कूबरनेटीस के लिए एक असली AWS ALB लोड बैलेंसर खड़ा करो
+    kubernetes.io/ingress.class: alb
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    # इंटरनेट पर सुरक्षित HTTPS कनेक्शन के लिए AWS Certificate Manager का इस्तेमाल
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS":443}]'
 spec:
-  ingressClassName: nginx
   rules:
-  - host: ecommerce.local
-    http:
+  - http:
       paths:
-      - path: /
+      # 1. ANALYTICS SERVICE PATH
+      - path: /api/analytics
         pathType: Prefix
         backend:
           service:
-            name: api-gateway
+            name: analytics-service
             port:
-              number: 3000
+              number: 80
+
+      # 2. USER SERVICE PATH
+      - path: /api/user
+        pathType: Prefix
+        backend:
+          service:
+            name: user-service
+            port:
+              number: 80
+
+      # 3. SHIPPING SERVICE PATH
+      - path: /api/shipping
+        pathType: Prefix
+        backend:
+          service:
+            name: shipping-service
+            port:
+              number: 80
+
+      # टिप: जब तुम बाकी सर्विसेज रेडी कर लोगे, तो इसी तरह उनके पाथ और सर्विस के नाम यहाँ जोड़ते जाओगे (कुल 16 पाथ होंगे)
