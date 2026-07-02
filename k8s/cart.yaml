@@ -25,6 +25,9 @@ spec:
         imagePullPolicy: Always
         ports:
         - containerPort: 8080  # हमारी प्रोडक्शन डॉकरफाइल का स्टैंडर्ड पोर्ट
+        env:
+        - name: S3_BUCKET_NAME
+          value: "praveen-ecommerce-bucket-12345"
         resources:
           limits:
             cpu: "500m"
