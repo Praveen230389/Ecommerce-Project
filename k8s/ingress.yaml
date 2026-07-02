@@ -4,17 +4,26 @@ metadata:
   name: ecommerce-alb-ingress
   namespace: production
   annotations:
-    # ये Annotations एडब्ल्यूएस को बताते हैं कि कूबरनेटीस के लिए एक असली AWS ALB लोड बैलेंसर खड़ा करो
+    # Tells Kubernetes to automatically provision an AWS Application Load Balancer
     kubernetes.io/ingress.class: alb
     alb.ingress.kubernetes.io/scheme: internet-facing
     alb.ingress.kubernetes.io/target-type: ip
-    # इंटरनेट पर सुरक्षित HTTPS कनेक्शन के लिए AWS Certificate Manager का इस्तेमाल
+    # Configures the ALB to listen on standard HTTP (80) and secure HTTPS (443)
     alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS":443}]'
 spec:
   rules:
   - http:
       paths:
-      # 1. ANALYTICS SERVICE PATH
+      # 1. API GATEWAY PATH (Main Entry point for the frontend)
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: api-gateway
+            port:
+              number: 80
+
+      # 2. ANALYTICS SERVICE PATH
       - path: /api/analytics
         pathType: Prefix
         backend:
@@ -23,16 +32,106 @@ spec:
             port:
               number: 80
 
-      # 2. USER SERVICE PATH
-      - path: /api/user
+      # 3. AUTH SERVICE PATH
+      - path: /api/auth
         pathType: Prefix
         backend:
           service:
-            name: user-service
+            name: auth-service
             port:
               number: 80
 
-      # 3. SHIPPING SERVICE PATH
+      # 4. CART SERVICE PATH
+      - path: /api/cart
+        pathType: Prefix
+        backend:
+          service:
+            name: cart-service
+            port:
+              number: 80
+
+      # 5. DISCOUNT SERVICE PATH
+      - path: /api/discount
+        pathType: Prefix
+        backend:
+          service:
+            name: discount-service
+            port:
+              number: 80
+
+      # 6. INVENTORY SERVICE PATH
+      - path: /api/inventory
+        pathType: Prefix
+        backend:
+          service:
+            name: inventory-service
+            port:
+              number: 80
+
+      # 7. NOTIFICATION SERVICE PATH
+      - path: /api/notification
+        pathType: Prefix
+        backend:
+          service:
+            name: notification-service
+            port:
+              number: 80
+
+      # 8. ORDER SERVICE PATH
+      - path: /api/order
+        pathType: Prefix
+        backend:
+          service:
+            name: order-service
+            port:
+              number: 80
+
+      # 9. PAYMENT SERVICE PATH
+      - path: /api/payment
+        pathType: Prefix
+        backend:
+          service:
+            name: payment-service
+            port:
+              number: 80
+
+      # 10. PRODUCT SERVICE PATH
+      - path: /api/product
+        pathType: Prefix
+        backend:
+          service:
+            name: product-service
+            port:
+              number: 80
+
+      # 11. RECOMMENDATION SERVICE PATH
+      - path: /api/recommendation
+        pathType: Prefix
+        backend:
+          service:
+            name: recommendation-service
+            port:
+              number: 80
+
+      # 12. REVIEW SERVICE PATH
+      - path: /api/review
+        pathType: Prefix
+        backend:
+          service:
+            name: review-service
+            port:
+              number: 80
+
+      # 13. SEARCH SERVICE PATH
+      - path: /api/search
+        pathType: Prefix
+        backend:
+          service:
+            name: search-service
+            port:
+              number: 80
+
+      # 14. SHIPPING SERVICE PATH
       - path: /api/shipping
         pathType: Prefix
         backend:
@@ -41,12 +140,20 @@ spec:
             port:
               number: 80
 
-      - path: /api/analytics
+      # 15. USER SERVICE PATH
+      - path: /api/user
         pathType: Prefix
         backend:
           service:
-            name: analytics-service
+            name: user-service
             port:
               number: 80
 
-      # टिप: जब तुम बाकी सर्विसेज रेडी कर लोगे, तो इसी तरह उनके पाथ और सर्विस के नाम यहाँ जोड़ते जाओगे (कुल 16 पाथ होंगे)
+      # 16. WISHLIST SERVICE PATH
+      - path: /api/wishlist
+        pathType: Prefix
+        backend:
+          service:
+            name: wishlist-service
+            port:
+              number: 80
