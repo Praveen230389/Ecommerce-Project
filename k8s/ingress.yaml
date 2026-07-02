@@ -41,4 +41,12 @@ spec:
             port:
               number: 80
 
+      - path: /api/analytics
+        pathType: Prefix
+        backend:
+          service:
+            name: analytics-service
+            port:
+              number: 80
+
       # टिप: जब तुम बाकी सर्विसेज रेडी कर लोगे, तो इसी तरह उनके पाथ और सर्विस के नाम यहाँ जोड़ते जाओगे (कुल 16 पाथ होंगे)
