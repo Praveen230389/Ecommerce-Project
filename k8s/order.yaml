@@ -25,6 +25,9 @@ spec:
         imagePullPolicy: Always
         ports:
         - containerPort: 8080  # हमारी प्रोडक्शन डॉकरफाइल का स्टैंडर्ड पोर्ट
+        env:
+        - name: DB_HOST
+          value: "REPLACE_WITH_YOUR_RDS_ENDPOINT_FROM_TERRAFORM_APPLY"
         resources:
           limits:
             cpu: "500m"
