@@ -2,8 +2,13 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: wishlist-service
+  namespace: production  # रूट वाली फाइल्स प्रोडक्शन नेमस्पेस के लिए हैं!
+  labels:
+    app: wishlist-service
 spec:
-  replicas: 1
+  replicas: 3  # प्रॉडक्शन में लोड झेलने के लिए कम से कम 3 रेप्लिका
+  strategy:
+    type: RollingUpdate
   selector:
     matchLabels:
       app: wishlist-service
@@ -14,20 +19,30 @@ spec:
     spec:
       containers:
       - name: wishlist-service
-        image: praveen230389/wishlist-service:latest
+        # यह Docker Hub के बजाय तुम्हारी AWS ECR रिपॉजिटरी से इमेज खींचेगा
+        # जेनकिंस पाइपलाइन चलते समय इस 'latest' शब्द को असली प्रॉडक्शन टैग (जैसे prod-b12) से बदल देगी
+        image: REPLACE_WITH_AWS_ECR_URL/wishlist-service:latest
         imagePullPolicy: Always
         ports:
-        - containerPort: 3010
+        - containerPort: 8080  # हमारी प्रोडक्शन डॉकरफाइल का स्टैंडर्ड पोर्ट
+        resources:
+          limits:
+            cpu: "500m"
+            memory: "512Mi"
+          requests:
+            cpu: "250m"
+            memory: "256Mi"
 ---
 apiVersion: v1
 kind: Service
 metadata:
   name: wishlist-service
+  namespace: production
 spec:
+  type: ClusterIP  # पूरी तरह सुरक्षित इंटरनल नेटवर्किंग
   selector:
     app: wishlist-service
   ports:
     - protocol: TCP
-      port: 3010
-      targetPort: 3010
-  type: ClusterIP
+      port: 80
+      targetPort: 8080
