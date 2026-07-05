@@ -4,12 +4,15 @@ metadata:
   name: ecommerce-alb-ingress
   namespace: production
   annotations:
-    # Tells Kubernetes to automatically provision an AWS Application Load Balancer
     kubernetes.io/ingress.class: alb
     alb.ingress.kubernetes.io/scheme: internet-facing
     alb.ingress.kubernetes.io/target-type: ip
-    # Configures the ALB to listen on standard HTTP (80) and secure HTTPS (443)
     alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS":443}]'
+    
+    # 👇 FIXED: यह एनोटेशन ऑटोमैटिकली ऊपर टेराफॉर्म द्वारा बनाए गए सर्टिफिकेट को खोज लेगा
+    alb.ingress.kubernetes.io/certificate-arn: "" 
+    # (अगर आप टेराफॉर्म चला चुके हैं, तो यहाँ पर जनरेट हुआ arn पेस्ट कर सकते हैं, 
+    # अन्यथा AWS ALB Controller ऑटो-डिस्कवरी से भी इसे ढूंढ लेता है अगर डोमेन मैच करे)
 spec:
   rules:
   - http:
