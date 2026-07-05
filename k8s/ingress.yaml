@@ -7,12 +7,8 @@ metadata:
     kubernetes.io/ingress.class: alb
     alb.ingress.kubernetes.io/scheme: internet-facing
     alb.ingress.kubernetes.io/target-type: ip
-    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS":443}]'
-    
-    # 👇 FIXED: यह एनोटेशन ऑटोमैटिकली ऊपर टेराफॉर्म द्वारा बनाए गए सर्टिफिकेट को खोज लेगा
-    alb.ingress.kubernetes.io/certificate-arn: "" 
-    # (अगर आप टेराफॉर्म चला चुके हैं, तो यहाँ पर जनरेट हुआ arn पेस्ट कर सकते हैं, 
-    # अन्यथा AWS ALB Controller ऑटो-डिस्कवरी से भी इसे ढूंढ लेता है अगर डोमेन मैच करे)
+    # 👇 FIXED: हमने HTTPS 443 और सर्टिफिकेट हटा दिया है, अब यह सिर्फ सिंपल HTTP पर खुलेगा
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}]'
 spec:
   rules:
   - http:
