@@ -12,11 +12,146 @@ spec:
   rules:
   - http:
       paths:
-      # उदाहरण के लिए auth-service का पाथ (इसी तरह बाकी 15 का पाथ नीचे जोड़ें)
+      # 1. API Gateway
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: api-gateway
+            port:
+              number: 80
+
+      # 2. Auth Service
       - path: /api/v1/auth
         pathType: Prefix
         backend:
           service:
             name: auth-service
+            port:
+              number: 80
+
+      # 3. Product Service
+      - path: /api/v1/product
+        pathType: Prefix
+        backend:
+          service:
+            name: product-service
+            port:
+              number: 80
+
+      # 4. Analytics Service
+      - path: /api/v1/analytics
+        pathType: Prefix
+        backend:
+          service:
+            name: analytics-service
+            port:
+              number: 80
+
+      # 5. Cart Service
+      - path: /api/v1/cart
+        pathType: Prefix
+        backend:
+          service:
+            name: cart-service
+            port:
+              number: 80
+
+      # 6. Discount Service
+      - path: /api/v1/discount
+        pathType: Prefix
+        backend:
+          service:
+            name: discount-service
+            port:
+              number: 80
+
+      # 7. Inventory Service
+      - path: /api/v1/inventory
+        pathType: Prefix
+        backend:
+          service:
+            name: inventory-service
+            port:
+              number: 80
+
+      # 8. Notification Service
+      - path: /api/v1/notification
+        pathType: Prefix
+        backend:
+          service:
+            name: notification-service
+            port:
+              number: 80
+
+      # 9. Order Service
+      - path: /api/v1/order
+        pathType: Prefix
+        backend:
+          service:
+            name: order-service
+            port:
+              number: 80
+
+      # 10. Payment Service
+      - path: /api/v1/payment
+        pathType: Prefix
+        backend:
+          service:
+            name: payment-service
+            port:
+              number: 80
+
+      # 11. Review Service
+      - path: /api/v1/review
+        pathType: Prefix
+        backend:
+          service:
+            name: review-service
+            port:
+              number: 80
+
+      # 12. Recommendation Service
+      - path: /api/v1/recommendation
+        pathType: Prefix
+        backend:
+          service:
+            name: recommendation-service
+            port:
+              number: 80
+
+      # 13. Search Service
+      - path: /api/v1/search
+        pathType: Prefix
+        backend:
+          service:
+            name: search-service
+            port:
+              number: 80
+
+      # 14. Shipping Service
+      - path: /api/v1/shipping
+        pathType: Prefix
+        backend:
+          service:
+            name: shipping-service
+            port:
+              number: 80
+
+      # 15. User Service
+      - path: /api/v1/user
+        pathType: Prefix
+        backend:
+          service:
+            name: user-service
+            port:
+              number: 80
+
+      # 16. Wishlist Service
+      - path: /api/v1/wishlist
+        pathType: Prefix
+        backend:
+          service:
+            name: wishlist-service
             port:
               number: 80
