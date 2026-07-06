@@ -23,13 +23,15 @@ pipeline {
                 script {
                     echo "Initializing Environment and Logging into AWS ECR..."
                     
-                    // FIXED: प्लगइन एरर को बाईपास करने के लिए स्टैंडर्ड usernamePassword बाइंडिंग का उपयोग
                     withCredentials([usernamePassword(credentialsId: 'aws-credentials-id', 
                                                      usernameVariable: 'AWS_ACCESS_KEY_ID', 
                                                      passwordVariable: 'AWS_SECRET_ACCESS_KEY')]) {
                         
-                        def accountId = sh(script: "aws sts get-caller-identity --query Account --output text", returnStdout: true).trim()
-                        env.ECR_URL = "${accountId}.dkr.ecr.${env.AWS_DEFAULT_REGION}.amazonaws.com"
+                        // FIXED: वेरिएबल्स को env. के साथ स्टोर किया ताकि वे 'null' न बनें
+                        env.AWS_ACCOUNT_ID = sh(script: "aws sts get-caller-identity --query Account --output text", returnStdout: true).trim()
+                        env.ECR_URL = "${env.AWS_ACCOUNT_ID}.dkr.ecr.${env.AWS_DEFAULT_REGION}.amazonaws.com"
+                        
+                        echo "Logging into AWS ECR URL: ${env.ECR_URL}"
                         sh "aws ecr get-login-password --region ${env.AWS_DEFAULT_REGION} | docker login --username AWS --password-stdin ${env.ECR_URL}"
                     }
                 }
