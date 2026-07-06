@@ -26,7 +26,6 @@ pipeline {
                                                      usernameVariable: 'AWS_ACCESS_KEY_ID', 
                                                      passwordVariable: 'AWS_SECRET_ACCESS_KEY')]) {
                         
-                        // FIXED: कोई ग्रूवी वेरिएबल नहीं, पूरा काम प्योर लिनक्स शेल के अंदर
                         sh """
                             ACCOUNT_ID=\$(aws sts get-caller-identity --query Account --output text)
                             echo "Detected AWS Account ID: \${ACCOUNT_ID}"
@@ -80,7 +79,61 @@ pipeline {
                     def parallelStages = [:]
                     def serviceResults = [:]
                     
-                    for (int i = 0; i  echo "  🚀 ${s} : [${res}]" }
+                    for (int i = 0; i < changedServices.size(); i++) {
+                        def service = changedServices[i]
+                        
+                        parallelStages["${service}-pipeline"] = {
+                            stage("Process ${service}") {
+                                try {
+                                    withCredentials([usernamePassword(credentialsId: 'aws-credentials-id', 
+                                                                     usernameVariable: 'AWS_ACCESS_KEY_ID', 
+                                                                     passwordVariable: 'AWS_SECRET_ACCESS_KEY')]) {
+                                        
+                                        sh """
+                                            ACCOUNT_ID=\$(aws sts get-caller-identity --query Account --output text)
+                                            LOCAL_ECR_URL="\${ACCOUNT_ID}.dkr.ecr.${env.AWS_DEFAULT_REGION}.amazonaws.com"
+                                            
+                                            echo "Building Docker image for: ${service}"
+                                            docker build -t \${LOCAL_ECR_URL}/${service}:${env.BRANCH_NAME}-${env.BUILD_NUMBER} ./${service}
+                                            
+                                            echo "Running Trivy Scan for: ${service}"
+                                            trivy image --exit-code 0 --severity HIGH,CRITICAL \${LOCAL_ECR_URL}/${service}:${env.BRANCH_NAME}-${env.BUILD_NUMBER}
+                                            
+                                            echo "Pushing Image to ECR for: ${service}"
+                                            docker push \${LOCAL_ECR_URL}/${service}:${env.BRANCH_NAME}-${env.BUILD_NUMBER}
+                                            
+                                            NAMESPACE="production"
+                                            if [ "${env.BRANCH_NAME}" = "develop" ]; then NAMESPACE="dev"; fi
+                                            if [ "${env.BRANCH_NAME}" = "testing" ]; then NAMESPACE="testing"; fi
+                                            
+                                            echo "Deploying ${service} to EKS Namespace [\${NAMESPACE}]..."
+                                            
+                                            sed -i "s|image: REPLACE_WITH_AWS_ECR_URL/.*|image: \${LOCAL_ECR_URL}/${service}:${env.BRANCH_NAME}-${env.BUILD_NUMBER}|g" ./${service}/k8s/*.yaml || true
+                                            sed -i "s|image: .*/${service}:.*|image: \${LOCAL_ECR_URL}/${service}:${env.BRANCH_NAME}-${env.BUILD_NUMBER}|g" ./${service}/k8s/*.yaml || true
+                                            
+                                            kubectl apply -f ./${service}/k8s/ -n \${NAMESPACE}
+                                        """
+                                    }
+                                    serviceResults[service] = "SUCCESS"
+                                    
+                                } catch (Exception e) {
+                                    echo "❌ ERROR: Pipeline failed for ${service}. Error: ${e.getMessage()}"
+                                    serviceResults[service] = "FAILED"
+                                    currentBuild.result = 'UNSTABLE'
+                                }
+                            }
+                        }
+                    }
+                    
+                    parallel parallelStages
+                    
+                    // FIXED: सिंटैक्स को पूरी तरह शुद्ध रूप से क्लोजर ब्लॉक में फिक्स किया गया
+                    echo "=========================================================="
+                    echo "             FINAL MICROSERVICES BUILD REPORT             "
+                    echo "=========================================================="
+                    for (entry in serviceResults) {
+                        echo "  🚀 ${entry.key} : [${entry.value}]"
+                    }
                     echo "=========================================================="
                 }
             }
