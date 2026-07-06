@@ -18,7 +18,7 @@ pipeline {
     }
     
     stages {
-                stage('Initialize & AWS ECR Login') {
+        stage('Initialize & AWS ECR Login') {
             steps {
                 script {
                     echo "Initializing Environment and Logging into AWS ECR..."
