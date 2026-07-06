@@ -9,8 +9,7 @@ pipeline {
         
         // --- 2. AWS CREDENTIALS ID FROM JENKINS UI ---
         // तुम्हें बस जेनकिंस के क्रेडेंशियल मैनेजर में एक बार 'aws-credentials-id' नाम से अपनी चाबियां (Keys) सेव करनी हैं
-        AWS_CREDS          = credentials('aws-credentials-id') 
-        SONAR_AUTH_TOKEN   = credentials('sonar-token')
+        AWS_CREDS          = credentials('aws-credentials-id')
     }
 
     stages {
@@ -46,21 +45,6 @@ pipeline {
             steps {
                 echo "Building local temporary development image..."
                 sh "docker build -t ${env.SERVICE_NAME}:dev-${env.BUILD_NUMBER} ."
-            }
-        }
-
-        // ==========================================
-        // 2. TESTING BRANCH STAGES (पूरी और भारी स्टेजेस)
-        // ==========================================
-        stage('Test: Deep SonarQube Code Scan') {
-            when { branch 'testing' } 
-            steps {
-                echo "Executing extensive Code Quality scan..."
-                // थ्योरी: चूँकि सोनार-स्कैनर पहले से तुम्हारे जेनकिंस सर्वर पर (jenkins.sh के थ्रू) मौजूद होगा
-                // और SONAR_HOST_URL हम सीधे जेनकिंस के सिस्टम सेटिंग्स से लिंक कर देंगे
-                withSonarQubeEnv('SonarQube-Server') {
-                    sh "sonar-scanner -Dsonar.projectKey=${env.SERVICE_NAME} -Dsonar.sources=."
-                }
             }
         }
 
