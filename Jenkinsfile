@@ -9,7 +9,7 @@ pipeline {
         githubPush()
     }
     environment {
-        JENKINS_JOB_BASE_PATH = "Microservices-Ecommerce"
+        JENKINS_JOB_BASE_PATH = "Ecommerce-Project"
     }
     stages {
         stage('Evaluate Changes & Trigger Downstream Pipelines') {
