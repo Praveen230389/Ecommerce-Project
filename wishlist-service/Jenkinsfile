@@ -2,19 +2,15 @@ pipeline {
     agent any
 
     environment {
-        // --- 1. AUTOMATIC SERVICE DETECTION (No manual edits needed!) ---
-        // यह कमांड अपने आप उस फोल्डर का नाम निकाल लेगी जिसके अंदर यह जेनकिंसफाइल चल रही है
-        SERVICE_NAME       = "${sh(script: 'basename \$(pwd)', returnStdout: true).trim()}"
+        // FIXED: जेनकिंस के एनवायरनमेंट वेरिएबल से ही सटीक सर्विस का नाम निकालना (100% फुल-प्रूफ)
+        SERVICE_NAME       = "${JOB_NAME.tokenize('/').minus(JOB_NAME.tokenize('/').last()).last()}"
         AWS_DEFAULT_REGION = "ap-south-1" 
-        
-        // --- 2. AWS CREDENTIALS ID FROM JENKINS UI ---
-        // तुम्हें बस जेनकिंस के क्रेडेंशियल मैनेजर में एक बार 'aws-credentials-id' नाम से अपनी चाबियां (Keys) सेव करनी हैं
         AWS_CREDS          = credentials('aws-credentials-id')
     }
 
     stages {
         // ==========================================
-        // 0. कॉमन स्टेजेस (ये हर ब्रांच पर चलेंगी)
+        // 0. कॉमन स्टेजेस (हर ब्रांच पर क्लीनअप और डिपेंडेंसी)
         // ==========================================
         stage('Workspace Cleanup') {
             steps {
@@ -30,29 +26,27 @@ pipeline {
         }
 
         // ==========================================
-        // 1. DEVELOP BRANCH STAGES (फास्ट और लाइटवेट सुरक्षा जांच)
+        // 1. DOCKER BUILD STAGE (कंपनी लेवल: यह हर ब्रांच पर इमेज बनाएगी)
         // ==========================================
-        stage('Dev: Fast Vulnerability Check') {
-            when { branch 'develop' } 
+        stage('Docker Production Build') {
             steps {
-                echo "Running quick Trivy File System scan for developers..."
-                sh "trivy fs --severity HIGH,CRITICAL --format table ."
+                echo "Building production-grade Docker image for ${env.SERVICE_NAME}..."
+                // इमेज टैग को ब्रांच के हिसाब से डायनामिक रखना (उदा. dev-1, test-1, prod-1)
+                sh "docker build -t ${env.SERVICE_NAME}:${env.BRANCH_NAME}-${env.BUILD_NUMBER} ."
             }
         }
 
-        stage('Dev: Build Local Container Image') {
-            when { branch 'develop' }
-            steps {
-                echo "Building local temporary development image..."
-                sh "docker build -t ${env.SERVICE_NAME}:dev-${env.BUILD_NUMBER} ."
+        // ==========================================
+        // 2. DEV & TESTING SECURITY SCANS (Trivy)
+        // ==========================================
+        stage('Security: Deep Container Layer Scan') {
+            when { 
+                expression { env.BRANCH_NAME == 'develop' || env.BRANCH_NAME == 'testing' } 
             }
-        }
-
-        stage('Test: Full Dependency Scan (SCA)') {
-            when { branch 'testing' }
             steps {
-                echo "Running complete Software Composition Analysis..."
-                sh "trivy fs --format table -o testing-full-report.html ."
+                echo "Scanning Docker image layers with Trivy..."
+                // FIXED: यह सीधे होस्ट मशीन के ट्रिवी को कंटेनर के रास्ते से एग्जीक्यूट करेगा
+                sh "trivy image --severity HIGH,CRITICAL ${env.SERVICE_NAME}:${env.BRANCH_NAME}-${env.BUILD_NUMBER}"
             }
         }
 
@@ -64,75 +58,51 @@ pipeline {
             }
         }
 
-        stage('Test: Docker Production Build') {
-            when { branch 'testing' }
+        // ==========================================
+        // 3. AWS ECR REGISTRY PUSH (DEVELOP, TESTING & MAIN)
+        // ==========================================
+        stage('AWS ECR Login & Push') {
             steps {
-                echo "Building production-grade Docker image using multi-stage Dockerfile..."
-                sh "docker build -t ${env.SERVICE_NAME}:${env.BUILD_NUMBER} ."
-            }
-        }
-
-        stage('Test: Deep Container Layer Scan') {
-            when { branch 'testing' }
-            steps {
-                echo "Scanning final Docker image layers with Trivy..."
-                sh "trivy image --severity HIGH,CRITICAL ${env.SERVICE_NAME}:${env.BUILD_NUMBER}"
-            }
-        }
-
-        stage('Test: AWS ECR Login & Push') {
-            when { branch 'testing' }
-            steps {
-                echo "Logging into AWS ECR Registry dynamically..."
                 withEnv(["AWS_ACCESS_KEY_ID=${env.AWS_CREDS_USR}", "AWS_SECRET_ACCESS_KEY=${env.AWS_CREDS_PSW}"]) {
                     script {
-                        // ऑटोमेटिक अकाउंट आईडी डिटेक्शन (तुम्हारी output.tf से मेल खाता हुआ)
+                        echo "Logging into AWS ECR Registry dynamically..."
                         def ACCOUNT_ID = sh(script: "aws sts get-caller-identity --query Account --output text", returnStdout: true).trim()
                         def ECR_URL = "${ACCOUNT_ID}.dkr.ecr.${env.AWS_DEFAULT_REGION}.amazonaws.com"
                         
                         sh "aws ecr get-login-password --region ${env.AWS_DEFAULT_REGION} | docker login --username AWS --password-stdin ${ECR_URL}"
                         
-                        echo "Tagging and pushing testing image to registry..."
-                        sh "docker tag ${env.SERVICE_NAME}:${env.BUILD_NUMBER} ${ECR_URL}/${env.SERVICE_NAME}:test-${env.BUILD_NUMBER}"
-                        sh "docker push ${ECR_URL}/${env.SERVICE_NAME}:test-${env.BUILD_NUMBER}"
-                    }
-                }
-            }
-        }
-
-        stage('Test: Deploy to Kubernetes QA Namespace') {
-            when { branch 'testing' }
-            steps {
-                echo "Applying manifests (development.yaml) to Kubernetes QA Cluster..."
-                // थ्योरी/कनेक्शन: जब कूबरनेटीस लाइव होगा तो ये कमांड्स एक्टिवेट कर दी जाएंगी
-                // sh "kubectl apply -f development.yaml"
-            }
-        }
-
-        // ==========================================
-        // 3. PRODUCTION / MAIN BRANCH STAGES (सिर्फ डिप्लॉयमेंट)
-        // ==========================================
-        stage('Prod: Push Production Release Image') {
-            when { branch 'main' } 
-            steps {
-                echo "Tagging and pushing final production release image to AWS ECR..."
-                withEnv(["AWS_ACCESS_KEY_ID=${env.AWS_CREDS_USR}", "AWS_SECRET_ACCESS_KEY=${env.AWS_CREDS_PSW}"]) {
-                    script {
-                        def ACCOUNT_ID = sh(script: "aws sts get-caller-identity --query Account --output text", returnStdout: true).trim()
-                        def ECR_URL = "${ACCOUNT_ID}.dkr.ecr.${env.AWS_DEFAULT_REGION}.amazonaws.com"
+                        // कंपनी लेवल: करंट ब्रांच के नाम का टैग लगाना (dev, test या prod)
+                        def targetTag = "${env.BRANCH_NAME}-${env.BUILD_NUMBER}"
+                        if(env.BRANCH_NAME == 'main') {
+                            targetTag = "prod-latest"
+                        }
                         
-                        sh "docker tag ${env.SERVICE_NAME}:${env.BUILD_NUMBER} ${ECR_URL}/${env.SERVICE_NAME}:prod-latest"
-                        sh "docker push ${ECR_URL}/${env.SERVICE_NAME}:prod-latest"
+                        echo "Tagging and pushing image as [${targetTag}] to registry..."
+                        sh "docker tag ${env.SERVICE_NAME}:${env.BRANCH_NAME}-${env.BUILD_NUMBER} ${ECR_URL}/${env.SERVICE_NAME}:${targetTag}"
+                        sh "docker push ${ECR_URL}/${env.SERVICE_NAME}:${targetTag}"
                     }
                 }
             }
         }
 
-        stage('Prod: GitOps ArgoCD Synchronization Trigger') {
-            when { branch 'main' }
+        // ==========================================
+        // 4. DEPLOYMENT STAGE (KUBERNETES / EKS WITH ALB INGRESS)
+        // ==========================================
+        stage('Deploy to EKS Cluster') {
             steps {
-                echo "Updating GitOps manifest file inside infrastructure repository..."
-                echo "ArgoCD will automatically sync the production EKS cluster with AWS ALB Ingress."
+                script {
+                    if (env.BRANCH_NAME == 'testing') {
+                        echo "Applying manifests to Kubernetes QA/Testing Namespace..."
+                        // भविष्य के लिए रेडी: टेस्टिंग फाइल डिप्लॉयमेंट
+                        // sh "kubectl apply -f k8s/development.yaml -n testing"
+                    } else if (env.BRANCH_NAME == 'main') {
+                        echo "Applying production manifests and syncing ALB Ingress..."
+                        // FIXED WORKFLOW: यही वह कमांड है जो तुम्हारी साइट को ALB DNS पर लाइव करेगी!
+                        sh "kubectl apply -f k8s/namespaces.yaml"
+                        sh "kubectl apply -f k8s/product-deployment.yaml -n production"
+                        sh "kubectl apply -f k8s/ingress.yaml -n production"
+                    }
+                }
             }
         }
     }
