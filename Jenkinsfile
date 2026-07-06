@@ -27,12 +27,12 @@ pipeline {
                                                      usernameVariable: 'AWS_ACCESS_KEY_ID', 
                                                      passwordVariable: 'AWS_SECRET_ACCESS_KEY')]) {
                         
-                        // FIXED: वेरिएबल्स को env. के साथ स्टोर किया ताकि वे 'null' न बनें
-                        env.AWS_ACCOUNT_ID = sh(script: "aws sts get-caller-identity --query Account --output text", returnStdout: true).trim()
-                        env.ECR_URL = "${env.AWS_ACCOUNT_ID}.dkr.ecr.${env.AWS_DEFAULT_REGION}.amazonaws.com"
-                        
-                        echo "Logging into AWS ECR URL: ${env.ECR_URL}"
-                        sh "aws ecr get-login-password --region ${env.AWS_DEFAULT_REGION} | docker login --username AWS --password-stdin ${env.ECR_URL}"
+                        // FIXED: बिना किसी 'null' वेरिएबल झंझट के, सीधे लिनक्स पाइपलाइन से लॉगिन
+                        sh """
+                            ACCOUNT_ID=\$(aws sts get-caller-identity --query Account --output text)
+                            echo "Detected AWS Account ID: \${ACCOUNT_ID}"
+                            aws ecr get-login-password --region ${env.AWS_DEFAULT_REGION} | docker login --username AWS --password-stdin \${ACCOUNT_ID}.dkr.ecr.${env.AWS_DEFAULT_REGION}.amazonaws.com
+                        """
                     }
                 }
             }
