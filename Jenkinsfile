@@ -13,7 +13,7 @@ pipeline {
     
     environment {
         AWS_DEFAULT_REGION = "ap-south-1"
-        TARGET_SERVICE     = "api-gateway" // 🎯 सिर्फ इसी एक सर्विस को टेस्ट कर रहे हैं
+        TARGET_SERVICE     = "cart-service" // 🎯 सिर्फ इसी एक सर्विस को टेस्ट कर रहे हैं
     }
     
     stages {
