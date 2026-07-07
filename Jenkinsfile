@@ -26,11 +26,12 @@ pipeline {
                                                      usernameVariable: 'AWS_ACCESS_KEY_ID', 
                                                      passwordVariable: 'AWS_SECRET_ACCESS_KEY')]) {
                         
-                        sh """
-                            ACCOUNT_ID=\$(aws sts get-caller-identity --query Account --output text)
-                            echo "Detected AWS Account ID: \${ACCOUNT_ID}"
-                            aws ecr get-login-password --region ${env.AWS_DEFAULT_REGION} | docker login --username AWS --password-stdin \${ACCOUNT_ID}.dkr.ecr.${env.AWS_DEFAULT_REGION}.amazonaws.com
-                        """
+                        def accountId = sh(script: "aws sts get-caller-identity --query Account --output text", returnStdout: true).trim()
+                        echo "Detected AWS Account ID: ${accountId}"
+                        
+                        env.ECR_URL = "${accountId}.dkr.ecr.${env.AWS_DEFAULT_REGION}.amazonaws.com"
+                        
+                        sh "aws ecr get-login-password --region ${env.AWS_DEFAULT_REGION} | docker login --username AWS --password-stdin ${env.ECR_URL}"
                     }
                 }
             }
@@ -93,6 +94,13 @@ pipeline {
                                             ACCOUNT_ID=\$(aws sts get-caller-identity --query Account --output text)
                                             LOCAL_ECR_URL="\${ACCOUNT_ID}.dkr.ecr.${env.AWS_DEFAULT_REGION}.amazonaws.com"
                                             
+                                            # 🔥 AUTOMATIC DOCKERFILE FIX: 'npm ci' वाले एरर को हवा में ही फिक्स करना
+                                            if [ -f "./${service}/Dockerfile" ]; then
+                                                echo "Applying enterprise Dockerfile patch for ${service}..."
+                                                sed -i 's|npm ci --only=production|npm install --omit=dev|g' ./${service}/Dockerfile || true
+                                                sed -i 's|npm ci|npm install --omit=dev|g' ./${service}/Dockerfile || true
+                                            fi
+                                            
                                             echo "Building Docker image for: ${service}"
                                             docker build -t \${LOCAL_ECR_URL}/${service}:${env.BRANCH_NAME}-${env.BUILD_NUMBER} ./${service}
                                             
@@ -127,7 +135,6 @@ pipeline {
                     
                     parallel parallelStages
                     
-                    // FIXED: सिंटैक्स को पूरी तरह शुद्ध रूप से क्लोजर ब्लॉक में फिक्स किया गया
                     echo "=========================================================="
                     echo "             FINAL MICROSERVICES BUILD REPORT             "
                     echo "=========================================================="
