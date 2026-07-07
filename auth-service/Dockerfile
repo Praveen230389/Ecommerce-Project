@@ -6,7 +6,7 @@ WORKDIR /app
 COPY package*.json ./
 
 # Install production dependencies and keep npm cache clean
-RUN npm ci --only=production
+RUN npm install --omit=dev
 
 # Copy the rest of the microservice application source code
 COPY . .
