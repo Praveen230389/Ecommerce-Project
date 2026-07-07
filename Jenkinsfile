@@ -13,28 +13,17 @@ pipeline {
     
     environment {
         AWS_DEFAULT_REGION = "ap-south-1"
-        TARGET_SERVICE     = "cart-service" // 🎯 सिर्फ इसी एक सर्विस को टेस्ट कर रहे हैं
+        // 🎯 टेस्ट के लिए तुम इसे 'api-gateway', 'cart-service' या अपनी सिंगल-पेज प्रैक्टिस साइट के फोल्डर नाम से बदल सकते हो
+        TARGET_SERVICE     = "api-gateway" 
     }
     
     stages {
-        stage('Workspace Clean') {
+        stage('Workspace Clean & Git Fetch') {
             steps {
-                echo "Cleaning up the old workspace cache..."
+                echo "Cleaning workspace and forcing Git to sync all branches and folders..."
                 cleanWs()
-            }
-        }
-        
-        stage('AWS STS Check') {
-            steps {
-                echo "Checking AWS Identity and Fetching Account ID..."
-                withCredentials([usernamePassword(credentialsId: 'aws-credentials-id', 
-                                                 usernameVariable: 'AWS_ACCESS_KEY_ID', 
-                                                 passwordVariable: 'AWS_SECRET_ACCESS_KEY')]) {
-                    sh """
-                        ACCOUNT_ID=\$(aws sts get-caller-identity --query Account --output text)
-                        echo "SUCCESS: Connected to AWS Account: \${ACCOUNT_ID}"
-                    """
-                }
+                // कंपनी लेवल सेफगार्ड: यह गिट को रिफ्रेश करता है ताकि कोई फोल्डर 'not found' न हो
+                sh "git fetch --all && git checkout ${env.BRANCH_NAME} && git pull origin ${env.BRANCH_NAME} || true"
             }
         }
         
@@ -54,13 +43,19 @@ pipeline {
         
         stage('Docker Image Build') {
             steps {
-                echo "Building production Docker image for ${env.TARGET_SERVICE}..."
+                echo "Building production Docker image for ${env.TARGET_SERVICE} on branch ${env.BRANCH_NAME}..."
                 withCredentials([usernamePassword(credentialsId: 'aws-credentials-id', 
                                                  usernameVariable: 'AWS_ACCESS_KEY_ID', 
                                                  passwordVariable: 'AWS_SECRET_ACCESS_KEY')]) {
                     sh """
                         ACCOUNT_ID=\$(aws sts get-caller-identity --query Account --output text)
                         LOCAL_ECR_URL="\${ACCOUNT_ID}.dkr.ecr.${env.AWS_DEFAULT_REGION}.amazonaws.com"
+                        
+                        # अगर किसी वजह से फोल्डर रूट पर नहीं है, तो उसे गिट के इतिहास से जबरन बाहर निकालना (Sparse Checkout Fallback)
+                        if [ ! -d "./${env.TARGET_SERVICE}" ]; then
+                            echo "⚠️ Folder not visible in current workspace. Forcing git checkout for ./${env.TARGET_SERVICE}..."
+                            git checkout origin/${env.BRANCH_NAME} -- ./${env.TARGET_SERVICE} || true
+                        fi
                         
                         echo "Applying Dockerfile patch to bypass npm ci lockfile error..."
                         sed -i 's|npm ci --only=production|npm install --omit=dev|g' ./${env.TARGET_SERVICE}/Dockerfile || true
@@ -74,7 +69,7 @@ pipeline {
         
         stage('Trivy Security Scan') {
             steps {
-                echo "Scanning final Docker image layers with Trivy Container Scanner..."
+                echo "Scanning final Docker image layers with Trivy Scanner (Offline Mode)..."
                 withCredentials([usernamePassword(credentialsId: 'aws-credentials-id', 
                                                  usernameVariable: 'AWS_ACCESS_KEY_ID', 
                                                  passwordVariable: 'AWS_SECRET_ACCESS_KEY')]) {
@@ -82,8 +77,7 @@ pipeline {
                         ACCOUNT_ID=\$(aws sts get-caller-identity --query Account --output text)
                         LOCAL_ECR_URL="\${ACCOUNT_ID}.dkr.ecr.${env.AWS_DEFAULT_REGION}.amazonaws.com"
                         
-                        # 🎯 FIXED: हमने पहले तुम्हारी EC2 होस्ट मशीन पर Trivy इंस्टॉल कर दिया है, 
-                        # इसलिए अब यह बिना किसी डाउनलोड/नेटवर्क एरर के सीधे ऑफलाइन मोड में सेकंडों में स्कैन करेगी!
+                        # होस्ट मशीन की ट्रिवी का उपयोग करके बिना टाइमआउट के 5 सेकंड में स्कैन
                         trivy image --scanners vuln --offline-scan \${LOCAL_ECR_URL}/${env.TARGET_SERVICE}:${env.BRANCH_NAME}-${env.BUILD_NUMBER}
                     """
                 }
@@ -116,6 +110,7 @@ pipeline {
                         ACCOUNT_ID=\$(aws sts get-caller-identity --query Account --output text)
                         LOCAL_ECR_URL="\${ACCOUNT_ID}.dkr.ecr.${env.AWS_DEFAULT_REGION}.amazonaws.com"
                         
+                        # ब्रांच के हिसाब से डायनामिक कूबरनेटीस नेमस्पेस तय करना
                         NAMESPACE="production"
                         if [ "${env.BRANCH_NAME}" = "develop" ]; then NAMESPACE="dev"; fi
                         if [ "${env.BRANCH_NAME}" = "testing" ]; then NAMESPACE="testing"; fi
@@ -135,8 +130,9 @@ pipeline {
     post {
         always {
             script {
-                echo "Post Actions: Cleaning up unused docker cached layers..."
+                echo "Cleaning up local workspace cache..."
                 sh "docker image prune -f || true"
+                cleanWs()
             }
         }
     }
