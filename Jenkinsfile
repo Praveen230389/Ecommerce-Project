@@ -124,16 +124,16 @@ pipeline {
                         sed -i "s|image: REPLACE_WITH_AWS_ECR_URL/.*|image: \${LOCAL_ECR_URL}/${env.TARGET_SERVICE}:${env.BRANCH_NAME}-${env.BUILD_NUMBER}|g" ./${env.TARGET_SERVICE}/k8s/*.yaml || true
                         sed -i "s|image: .*/${env.TARGET_SERVICE}:.*|image: \${LOCAL_ECR_URL}/${env.TARGET_SERVICE}:${env.BRANCH_NAME}-${env.BUILD_NUMBER}|g" ./${env.TARGET_SERVICE}/k8s/*.yaml || true
                         
-                        echo "Applying k8s files to EKS cluster..."
-                        # 🎯 FIXED: इसके आगे || true लगा दिया है ताकि लोकल हेल्म/क्लस्टर लॉक पाइपलाइन को न रोके
+                        echo "Applying k8s files to EKS cluster in namespace: \${NAMESPACE}"
                         kubectl apply -f ./${env.TARGET_SERVICE}/k8s/ -n \${NAMESPACE} || true
                     """
                 }
             }
         }
+    }
     
-        post {
-          always {
+    post {
+        always {
             script {
                 echo "Post Actions: Cleaning up unused docker cached layers..."
                 sh "docker image prune -f || true"
