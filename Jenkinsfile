@@ -124,46 +124,56 @@ pipeline {
         stage('Kubernetes Deployment') {
             steps {
                 echo "Deploying ${env.TARGET_SERVICE} to Kubernetes Cluster..."
-                script {
-                    // 🔐 ग्रूवी स्कोप में ही क्रेडेंशियल्स को निकालकर सुरक्षित पास करना
-                    def accountId = sh(script: "aws sts get-caller-identity --query Account --output text", returnStdout: true).trim()
-                    def ecrUrl = "${accountId}.dkr.ecr.${env.AWS_DEFAULT_REGION}.amazonaws.com"
+                // 🛠️ यहाँ डबल कोट्स की जगह सिंगल कोट्स (''') का उपयोग किया है ताकि Jenkins Groovy बीच में हस्तक्षेप न करे
+                sh '''
+                    # 1. सीधे शेल के अंदर ही AWS Account ID और ECR URL सेट करना
+                    ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+                    LOCAL_ECR_URL="${ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com"
                     
-                    env.LOCAL_ECR_URL = ecrUrl
-                    
-                    // शेल स्क्रिप्ट ब्लॉक
-                    sh """
-                        # 🛠️ FIX 1: स्नैप के सैंडबॉक्स के अंदर ही जबरन फ्रेश कॉन्फ़िगरेशन को इंजेक्ट करना
-                        export KUBECONFIG=\${HOME}/.kube/config
-                        aws eks update-kubeconfig --region ${env.AWS_DEFAULT_REGION} --name ecommerce-cluster --kubeconfig \${KUBECONFIG}
+                    echo "Starting deployment for AWS Account: ${ACCOUNT_ID}"
+                    echo "ECR URL configured as: ${LOCAL_ECR_URL}"
 
-                        NAMESPACE="production"
-                        if [ "${env.ACTUAL_BRANCH}" = "develop" ] || [ "${env.ACTUAL_BRANCH}" = "dev" ]; then NAMESPACE="dev"; fi
-                        if [ "${env.ACTUAL_BRANCH}" = "testing" ]; then NAMESPACE="testing"; fi
+                    # 2. स्नैप के सुरक्षित वर्कस्पेस के अंदर kubeconfig सेट करना
+                    export KUBECONFIG="${WORKSPACE}/.kube-config"
+                    aws eks update-kubeconfig --region ${AWS_DEFAULT_REGION} --name ecommerce-cluster --kubeconfig ${KUBECONFIG}
 
-                        echo "🎯 Ensuring namespace \${NAMESPACE} exists..."
-                        kubectl apply -f ./k8s/namespaces.yaml || kubectl create namespace \${NAMESPACE}
+                    NAMESPACE="production"
+                    if [ "${ACTUAL_BRANCH}" = "develop" ] || [ "${ACTUAL_BRANCH}" = "dev" ] || [ "${BRANCH_NAME}" = "develop" ]; then 
+                        NAMESPACE="dev"
+                    fi
+                    if [ "${ACTUAL_BRANCH}" = "testing" ] || [ "${BRANCH_NAME}" = "testing" ]; then 
+                        NAMESPACE="testing"
+                    fi
 
-                        # 🌐 2. रूट के मुख्य k8s फोल्डर की फाइल्स को अप्लाई करना
-                        if [ -d "./k8s" ]; then
-                            echo "🌐 Applying Global manifests from Root k8s folder..."
-                            find ./k8s/ -name "*.yaml" ! -name "namespaces.yaml" -exec sed -i "s|image: REPLACE_WITH_AWS_ECR_URL/.*|image: ${env.LOCAL_ECR_URL}/${env.TARGET_SERVICE}:${env.ACTUAL_BRANCH}-${env.BUILD_NUMBER}|g" {} + || true
-                            kubectl apply -f ./k8s/ -n \${NAMESPACE}
-                        fi
+                    echo "🎯 Ensuring namespace ${NAMESPACE} exists..."
+                    if [ -f "./k8s/namespaces.yaml" ]; then
+                        kubectl apply -f ./k8s/namespaces.yaml --kubeconfig ${KUBECONFIG} || true
+                    else
+                        kubectl create namespace ${NAMESPACE} --dry-run=client -o yaml | kubectl apply -f - --kubeconfig ${KUBECONFIG} || true
+                    fi
 
-                        # 📦 3. सर्विस स्पेसिफिक (cart-service) manifests को अप्लाई करना
-                        K8S_DIR="./${env.TARGET_SERVICE}/k8s"
-                        if [ -d "\${K8S_DIR}" ]; then
-                            echo "📦 Applying Service-specific manifests from \${K8S_DIR}..."
-                            find \${K8S_DIR}/ -name "*.yaml" -exec sed -i "s|image: REPLACE_WITH_AWS_ECR_URL/.*|image: ${env.LOCAL_ECR_URL}/${env.TARGET_SERVICE}:${env.ACTUAL_BRANCH}-${env.BUILD_NUMBER}|g" {} + || true
-                            find \${K8S_DIR}/ -name "*.yaml" -exec sed -i "s|image: .*/${env.TARGET_SERVICE}:.*|image: ${env.LOCAL_ECR_URL}/${env.TARGET_SERVICE}:${env.ACTUAL_BRANCH}-${env.BUILD_NUMBER}|g" {} + || true
-
-                            kubectl apply -f \${K8S_DIR}/ -n \${NAMESPACE}
-                        fi
+                    # 3. रूट के मुख्य k8s फोल्डर की फाइल्स को अपडेट और अप्लाई करना
+                    if [ -d "./k8s" ]; then
+                        echo "🌐 Applying Global manifests from Root k8s folder..."
+                        find ./k8s/ -name "*.yaml" ! -name "namespaces.yaml" -exec sed -i "s|image: REPLACE_WITH_AWS_ECR_URL/.*|image: ${LOCAL_ECR_URL}/${TARGET_SERVICE}:${ACTUAL_BRANCH}-${BUILD_NUMBER}|g" {} + || true
+                        find ./k8s/ -name "*.yaml" ! -name "namespaces.yaml" -exec sed -i "s|image: REPLACE_WITH_AWS_ECR_URL/.*|image: ${LOCAL_ECR_URL}/${TARGET_SERVICE}:main-${BUILD_NUMBER}|g" {} + || true
                         
-                        echo "🎉 Complete Cluster deployment finished successfully!"
-                    """
-                }
+                        kubectl apply -f ./k8s/ -n ${NAMESPACE} --kubeconfig ${KUBECONFIG}
+                    fi
+
+                    # 4. सर्विस स्पेसिफिक (cart-service) manifests को अप्लाई करना
+                    K8S_DIR="./${TARGET_SERVICE}/k8s"
+                    if [ -d "${K8S_DIR}" ]; then
+                        echo "📦 Applying Service-specific manifests from ${K8S_DIR}..."
+                        find ${K8S_DIR}/ -name "*.yaml" -exec sed -i "s|image: REPLACE_WITH_AWS_ECR_URL/.*|image: ${LOCAL_ECR_URL}/${TARGET_SERVICE}:${ACTUAL_BRANCH}-${BUILD_NUMBER}|g" {} + || true
+                        find ${K8S_DIR}/ -name "*.yaml" -exec sed -i "s|image: REPLACE_WITH_AWS_ECR_URL/.*|image: ${LOCAL_ECR_URL}/${TARGET_SERVICE}:main-${BUILD_NUMBER}|g" {} + || true
+                        find ${K8S_DIR}/ -name "*.yaml" -exec sed -i "s|image: .*/${TARGET_SERVICE}:.*|image: ${LOCAL_ECR_URL}/${TARGET_SERVICE}:main-${BUILD_NUMBER}|g" {} + || true
+
+                        kubectl apply -f ${K8S_DIR}/ -n ${NAMESPACE} --kubeconfig ${KUBECONFIG}
+                    fi
+                    
+                    echo "🎉 Complete Cluster deployment finished successfully!"
+                '''
             }
         }
     } // 🛠️ FIX: यह ब्रैकेट 'stages' ब्लॉक को बंद करने के लिए ज़रूरी था
