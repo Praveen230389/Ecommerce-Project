@@ -22,7 +22,7 @@ pipeline {
     }
     
     stages {
-        stage(clean) {
+        stage('Workspace Clean') { // 🛠️ FIX 1: बिना कोट्स के 'clean' को स्ट्रिंग में बदला
             steps {
                 cleanWs()
             }
@@ -31,13 +31,17 @@ pipeline {
         stage('git checkout') {
             steps {
                 git branch: 'main', url: 'https://github.com/Praveen230389/Ecommerce-Project.git'
+                script {
+                    // 🛠️ FIX 2: नीचे की स्टेजेस में इस्तेमाल होने वाले ACTUAL_BRANCH को यहाँ सेट किया
+                    env.ACTUAL_BRANCH = 'main'
+                }
             }
         }
         
         stage("Docker Image Build") {
             steps {
                 script {
-                    dir('cartservice/Dockerfile') {
+                    dir('cartservice') { // 🛠️ FIX 3: 'cartservice/Dockerfile' से फ़ाइल हटाकर सिर्फ फोल्डर पाथ दिया
                         sh 'docker system prune -f'
                         sh 'docker container prune -f'
                         sh 'docker build -t Ecommerse/cart-service .'
