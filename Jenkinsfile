@@ -1,34 +1,34 @@
 pipeline {
     agent any
-    
+
     options {
         timeout(time: 1, unit: 'HOURS')
         buildDiscarder(logRotator(numToKeepStr: '30'))
         disableConcurrentBuilds()
     }
-    
+
     triggers {
         githubPush()
     }
-    
+
     environment {
         AWS_DEFAULT_REGION = "ap-south-1"
         TARGET_SERVICE_1   = "cart-service"
         TARGET_SERVICE_2   = "api-gateway"
-        
+
         // 🔐 ग्लोबल लेवल क्रेडेंशियल्स
         AWS_CREDENTIALS = credentials('aws-credentials-id')
         AWS_ACCESS_KEY_ID = "${env.AWS_CREDENTIALS_USR}"
         AWS_SECRET_ACCESS_KEY = "${env.AWS_CREDENTIALS_PSW}"
     }
-    
+
     stages {
         stage('Workspace Clean') {
             steps {
                 cleanWs()
             }
         }
-        
+
         stage('Git Checkout') {
             steps {
                 git branch: 'main', url: 'https://github.com/Praveen230389/Ecommerce-Project.git'
@@ -37,18 +37,18 @@ pipeline {
                 }
             }
         }
-        
+
         stage("Docker Image Build (Cart Service)") {
             steps {
                 script {
                     sh 'docker system prune -f'
                     sh 'docker container prune -f'
-                    
+
                     sh '''
                         ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
                         LOCAL_ECR_URL="${ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com"
                         FULL_IMAGE_TAG="${LOCAL_ECR_URL}/${TARGET_SERVICE_1}:${ACTUAL_BRANCH}-${BUILD_NUMBER}"
-                        
+
                         echo "Building ${TARGET_SERVICE_1}..."
                         docker build -t Ecommerse/${TARGET_SERVICE_1} -t ${FULL_IMAGE_TAG} -f cart-service/Dockerfile cart-service/
                     '''
@@ -63,7 +63,7 @@ pipeline {
                         ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
                         LOCAL_ECR_URL="${ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com"
                         FULL_IMAGE_TAG="${LOCAL_ECR_URL}/${TARGET_SERVICE_2}:${ACTUAL_BRANCH}-${BUILD_NUMBER}"
-                        
+
                         echo "Building ${TARGET_SERVICE_2}..."
                         docker build -t Ecommerse/${TARGET_SERVICE_2} -t ${FULL_IMAGE_TAG} -f api-gateway/Dockerfile api-gateway/
                     '''
@@ -80,17 +80,17 @@ pipeline {
                 """
             }
         }
-        
+
         stage('Trivy Image Scan') {
-            steps { 
+            steps {
                 echo "Exporting images and scanning with Trivy..."
                 script {
                     sh 'docker save Ecommerse/cart-service -o cart-service.tar'
                     sh 'trivy image --input cart-service.tar --scanners vuln --offline-scan > trivyresults-cart.txt || true'
-                    
+
                     sh 'docker save Ecommerse/api-gateway -o api-gateway.tar'
                     sh 'trivy image --input api-gateway.tar --scanners vuln --offline-scan > trivyresults-gateway.txt || true'
-                    
+
                     sh 'rm -f cart-service.tar api-gateway.tar'
                 }
             }
@@ -105,17 +105,22 @@ pipeline {
 
                     echo "Pushing Cart Service..."
                     docker push ${LOCAL_ECR_URL}/${TARGET_SERVICE_1}:${ACTUAL_BRANCH}-${BUILD_NUMBER}
-                    
+
                     echo "Pushing API Gateway..."
                     docker push ${LOCAL_ECR_URL}/${TARGET_SERVICE_2}:${ACTUAL_BRANCH}-${BUILD_NUMBER}
                 '''
             }
         }
 
-        stage('Load AWS Credentials') {
-           steps {
-              withCredentials([
-                 usernamePassword(
+        /********************************************************************
+ * Kubernetes Deployment & Verification Stages
+ * (Replace your existing deployment section with this)
+ ********************************************************************/
+
+stage('Load AWS Credentials') {
+    steps {
+        withCredentials([
+            usernamePassword(
                 credentialsId: 'aws-credentials-id',
                 usernameVariable: 'AWS_ACCESS_KEY_ID',
                 passwordVariable: 'AWS_SECRET_ACCESS_KEY'
@@ -470,14 +475,12 @@ stage('Final Cluster Summary') {
         '''
     }
 }
-        post {
-           always {
-               script {
-                   echo "Cleaning up local workspace cache..."
-                   sh "docker image prune -f || true"
-                   cleanWs()
-               }
-           }
-       }
+    post {
+        always {
+            script {
+                echo "Cleaning up local workspace cache..."
+                sh "docker image prune -f || true"
+                cleanWs()
+            }
+        }
     }
-}
