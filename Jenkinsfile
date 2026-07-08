@@ -128,28 +128,46 @@ pipeline {
                     ACCOUNT_ID=\$(aws sts get-caller-identity --query Account --output text)
                     LOCAL_ECR_URL="\${ACCOUNT_ID}.dkr.ecr.${env.AWS_DEFAULT_REGION}.amazonaws.com"
 
+                    # 1. ब्रांच के हिसाब से नेमस्पेस तय करना
                     NAMESPACE="production"
                     if [ "${env.ACTUAL_BRANCH}" = "develop" ] || [ "${env.ACTUAL_BRANCH}" = "dev" ]; then NAMESPACE="dev"; fi
                     if [ "${env.ACTUAL_BRANCH}" = "testing" ]; then NAMESPACE="testing"; fi
 
-                    K8S_DIR="./${env.TARGET_SERVICE}/k8s"
-                    if [ ! -d "\${K8S_DIR}" ] && [ -d "./k8s" ]; then K8S_DIR="./k8s"; fi
+                    # 🛠️ FIX 1: सबसे पहले रूट में मौजूद namespaces.yaml को चलाकर सारे namespaces क्रिएट करना
+                    if [ -f "./namespaces.yaml" ]; then
+                        echo "🎯 Creating Namespaces from root namespaces.yaml..."
+                        kubectl apply -f ./namespaces.yaml
+                    elif [ -f "./k8s/namespaces.yaml" ]; then
+                        echo "🎯 Creating Namespaces from k8s/namespaces.yaml..."
+                        kubectl apply -f ./k8s/namespaces.yaml
+                    else
+                        echo "⚠️ namespaces.yaml not found. Creating \${NAMESPACE} namespace manually..."
+                        kubectl create namespace \${NAMESPACE} --dry-run=client -o yaml | kubectl apply -f -
+                    fi
 
+                    # 🛠️ FIX 2: रूट के मुख्य k8s फोल्डर की ग्लोबल फाइल्स को भी अप्लाई करना (जैसे ALB Ingress)
+                    if [ -d "./k8s" ]; then
+                        echo "🌐 Applying Global manifests from Root k8s folder..."
+                        # अगर रूट k8s में भी कोई इमेज टैग बदलने की जरूरत हो
+                        sed -i "s|image: REPLACE_WITH_AWS_ECR_URL/.*|image: \${LOCAL_ECR_URL}/${env.TARGET_SERVICE}:${env.ACTUAL_BRANCH}-${env.BUILD_NUMBER}|g" ./k8s/*.yaml || true
+                        kubectl apply -f ./k8s/ -n \${NAMESPACE} || true
+                    fi
+
+                    # 3. सर्विस स्पेसिफिक (cart-service) manifests को अप्लाई करना
+                    K8S_DIR="./${env.TARGET_SERVICE}/k8s"
                     if [ -d "\${K8S_DIR}" ]; then
-                        echo "Dynamically replacing ECR Image Tag inside k8s manifests in \${K8S_DIR}..."
-                        sed -i "s|image: REPLACE_WITH_AWS_ECR_URL/.*|image: \${LOCAL_ECR_URL}/${env.TARGET_SERVICE}:${env.ACTUAL_BRANCH}-${env.BUILD_NUMBER}|g" \${K8S_DIR}/*.yaml || true
+                        echo "📦 Applying Service-specific manifests from \${K8S_DIR}..."
+                        sed -i "s|image: REPLACE_WITH_AWS_ECR_URL/.*|image: \${LOCAL_ECR_URL}/${env.TARGET_SERVICE}:${env.ACTUAL_BRANCH}-${env.BUILD_NUMBER}|g" \th\${K8S_DIR}/*.yaml || true
                         sed -i "s|image: .*/${env.TARGET_SERVICE}:.*|image: \${LOCAL_ECR_URL}/${env.TARGET_SERVICE}:${env.ACTUAL_BRANCH}-${env.BUILD_NUMBER}|g" \${K8S_DIR}/*.yaml || true
 
-                        echo "Applying k8s files to cluster in namespace: \${NAMESPACE}"
-                        kubectl apply -f \${K8S_DIR}/ -n \${NAMESPACE} || true
+                        kubectl apply -f \sub\${K8S_DIR}/ -n \${NAMESPACE}
                     else
-                        echo "⚠️ Skipping K8s deploy step: No manifests directory found."
+                        echo "⚠️ No service-specific manifests folder found at \${K8S_DIR}"
                     fi
                 """
             }
         }
     }
-
     post {
         always {
             script {
