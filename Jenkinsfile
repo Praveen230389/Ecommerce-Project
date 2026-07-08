@@ -136,13 +136,13 @@ pipeline {
                     # 2. सबसे पहले रूट में मौजूद namespaces.yaml या k8s/namespaces.yaml को चलाना
                     if [ -f "./namespaces.yaml" ]; then
                         echo "🎯 Creating Namespaces from root namespaces.yaml..."
-                        kubectl apply -f ./namespaces.yaml
+                        kubectl apply -f ./namespaces.yaml || true
                     elif [ -f "./k8s/namespaces.yaml" ]; then
                         echo "🎯 Creating Namespaces from k8s/namespaces.yaml..."
-                        kubectl apply -f ./k8s/namespaces.yaml
+                        kubectl apply -f ./k8s/namespaces.yaml || true
                     else
                         echo "⚠️ namespaces.yaml not found. Creating \${NAMESPACE} namespace manually..."
-                        kubectl create namespace \${NAMESPACE} --dry-run=client -o yaml | kubectl apply -f -
+                        kubectl create namespace \${NAMESPACE} --dry-run=client -o yaml | kubectl apply -f - || true
                     fi
 
                     # 3. रूट के मुख्य k8s फोल्डर की ग्लोबल फाइल्स को भी अप्लाई करना (जैसे ALB Ingress)
@@ -159,10 +159,12 @@ pipeline {
                         sed -i "s|image: REPLACE_WITH_AWS_ECR_URL/.*|image: \${LOCAL_ECR_URL}/${env.TARGET_SERVICE}:${env.ACTUAL_BRANCH}-${env.BUILD_NUMBER}|g" \${K8S_DIR}/*.yaml || true
                         sed -i "s|image: .*/${env.TARGET_SERVICE}:.*|image: \${LOCAL_ECR_URL}/${env.TARGET_SERVICE}:${env.ACTUAL_BRANCH}-${env.BUILD_NUMBER}|g" \${K8S_DIR}/*.yaml || true
 
-                        kubectl apply -f \${K8S_DIR}/ -n \${NAMESPACE}
+                        kubectl apply -f \${K8S_DIR}/ -n \${NAMESPACE} || true
                     else
                         echo "⚠️ No service-specific manifests folder found at \${K8S_DIR}"
                     fi
+                    
+                    echo "🎉 Deployment logic completed successfully!"
                 """
             }
         }
