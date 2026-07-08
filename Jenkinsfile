@@ -121,50 +121,41 @@ pipeline {
             }
         }
 
-        stage('Kubernetes Deployment') {
+                stage('Kubernetes Deployment') {
             steps {
                 echo "Deploying ${env.TARGET_SERVICE} to Kubernetes Cluster..."
                 sh """
-                    ACCOUNT_ID=\$(aws sts get-caller-identity --query Account --output text)
-                    LOCAL_ECR_URL="\${ACCOUNT_ID}.dkr.ecr.${env.AWS_DEFAULT_REGION}.amazonaws.com"
+                    # Jenkins के अंदर EKS कॉन्फ़िगरेशन को पक्का करने के लिए जबरन अपडेट
+                    aws eks update-kubeconfig --region ${env.AWS_DEFAULT_REGION} --name ecommerce-cluster
 
-                    # 1. ब्रांच के हिसाब से नेमस्पेस तय करना
                     NAMESPACE="production"
                     if [ "${env.ACTUAL_BRANCH}" = "develop" ] || [ "${env.ACTUAL_BRANCH}" = "dev" ]; then NAMESPACE="dev"; fi
                     if [ "${env.ACTUAL_BRANCH}" = "testing" ]; then NAMESPACE="testing"; fi
 
-                    # 2. सबसे पहले रूट में मौजूद namespaces.yaml या k8s/namespaces.yaml को चलाना
-                    if [ -f "./namespaces.yaml" ]; then
-                        echo "🎯 Creating Namespaces from root namespaces.yaml..."
-                        kubectl apply -f ./namespaces.yaml || true
-                    elif [ -f "./k8s/namespaces.yaml" ]; then
-                        echo "🎯 Creating Namespaces from k8s/namespaces.yaml..."
-                        kubectl apply -f ./k8s/namespaces.yaml || true
-                    else
-                        echo "⚠️ namespaces.yaml not found. Creating \${NAMESPACE} namespace manually..."
-                        kubectl create namespace \${NAMESPACE} --dry-run=client -o yaml | kubectl apply -f - || true
-                    fi
+                    # 🎯 1. नेमस्पेस को पहले ही सुरक्षित तरीके से बनाना
+                    echo "🎯 Ensuring namespace \${NAMESPACE} exists..."
+                    kubectl create namespace \${NAMESPACE} --dry-run=client -o yaml | kubectl apply -f -
 
-                    # 3. रूट के मुख्य k8s फोल्डर की ग्लोबल फाइल्स को भी अप्लाई करना (जैसे ALB Ingress)
+                    # 🌐 2. रूट के मुख्य k8s फोल्डर की फाइल्स को अप्लाई करना (बिना namespaces.yaml को करप्ट किए)
                     if [ -d "./k8s" ]; then
                         echo "🌐 Applying Global manifests from Root k8s folder..."
-                        sed -i "s|image: REPLACE_WITH_AWS_ECR_URL/.*|image: \${LOCAL_ECR_URL}/${env.TARGET_SERVICE}:${env.ACTUAL_BRANCH}-${env.BUILD_NUMBER}|g" ./k8s/*.yaml || true
-                        kubectl apply -f ./k8s/ -n \${NAMESPACE} || true
+                        # सिर्फ deployment/service फाइल्स को टारगेट करें, namespaces.yaml को छोड़ दें
+                        find ./k8s/ -name "*.yaml" ! -name "namespaces.yaml" -exec sed -i "s|image: REPLACE_WITH_AWS_ECR_URL/.*|image: \${LOCAL_ECR_URL}/${env.TARGET_SERVICE}:${env.ACTUAL_BRANCH}-${env.BUILD_NUMBER}|g" {} + || true
+                        
+                        kubectl apply -f ./k8s/ -n \${NAMESPACE}
                     fi
 
-                    # 4. सर्विस स्पेसिफिक (cart-service) manifests को अप्लाई करना
+                    # 📦 3. सर्विस स्पेसिफिक (cart-service) manifests को अप्लाई करना
                     K8S_DIR="./${env.TARGET_SERVICE}/k8s"
                     if [ -d "\${K8S_DIR}" ]; then
                         echo "📦 Applying Service-specific manifests from \${K8S_DIR}..."
-                        sed -i "s|image: REPLACE_WITH_AWS_ECR_URL/.*|image: \${LOCAL_ECR_URL}/${env.TARGET_SERVICE}:${env.ACTUAL_BRANCH}-${env.BUILD_NUMBER}|g" \${K8S_DIR}/*.yaml || true
-                        sed -i "s|image: .*/${env.TARGET_SERVICE}:.*|image: \${LOCAL_ECR_URL}/${env.TARGET_SERVICE}:${env.ACTUAL_BRANCH}-${env.BUILD_NUMBER}|g" \${K8S_DIR}/*.yaml || true
+                        find \${K8S_DIR}/ -name "*.yaml" -exec sed -i "s|image: REPLACE_WITH_AWS_ECR_URL/.*|image: \${LOCAL_ECR_URL}/${env.TARGET_SERVICE}:${env.ACTUAL_BRANCH}-${env.BUILD_NUMBER}|g" {} + || true
+                        find \${K8S_DIR}/ -name "*.yaml" -exec sed -i "s|image: .*/${env.TARGET_SERVICE}:.*|image: \${LOCAL_ECR_URL}/${env.TARGET_SERVICE}:${env.ACTUAL_BRANCH}-${env.BUILD_NUMBER}|g" {} + || true
 
-                        kubectl apply -f \${K8S_DIR}/ -n \${NAMESPACE} || true
-                    else
-                        echo "⚠️ No service-specific manifests folder found at \${K8S_DIR}"
+                        kubectl apply -f \${K8S_DIR}/ -n \${NAMESPACE}
                     fi
                     
-                    echo "🎉 Deployment logic completed successfully!"
+                    echo "🎉 Complete Cluster deployment finished successfully!"
                 """
             }
         }
