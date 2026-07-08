@@ -44,29 +44,41 @@ pipeline {
                     sh 'docker system prune -f'
                     sh 'docker container prune -f'
                     
-                    // AWS ECR का पूरा URL जनरेट करना
-                    def accountId = sh(script: "aws sts get-caller-identity --query Account --output text", returnStdout: true).trim()
-                    def ecrUrl = "${accountId}.dkr.ecr.${env.AWS_DEFAULT_REGION}.amazonaws.com"
-                    // यही वो डायनामिक टैग है जो पुश स्टेज में इस्तेमाल हो रहा है
-                    def fullImageTag = "${ecrUrl}/${env.TARGET_SERVICE}:${env.ACTUAL_BRANCH}-${env.BUILD_NUMBER}"
-                    
+                    // 🛠️ FIX: सीधे शेल स्क्रिप्ट के अंदर ही अकाउंट आईडी निकालकर फुल टैग बनाएंगे
+                    // इससे कोई भी वेरिएबल खाली रहने का चांस 0% हो जाता है
                     if (fileExists('cart-service/Dockerfile')) {
                         echo "✅ Found Dockerfile in cart-service folder"
-                        // 🛠️ FIX: लोकल नाम के साथ-साथ सीधे AWS ECR के नाम से भी बिल्ड कर रहे हैं
-                        sh "docker build -t Ecommerse/cart-service -t ${fullImageTag} -f cart-service/Dockerfile cart-service/"
+                        sh """
+                            ACCOUNT_ID=\$(aws sts get-caller-identity --query Account --output text)
+                            LOCAL_ECR_URL="\${ACCOUNT_ID}.dkr.ecr.${env.AWS_DEFAULT_REGION}.amazonaws.com"
+                            FULL_IMAGE_TAG="\${LOCAL_ECR_URL}/${env.TARGET_SERVICE}:${env.ACTUAL_BRANCH}-${env.BUILD_NUMBER}"
+                            
+                            docker build -t Ecommerse/cart-service -t \${FULL_IMAGE_TAG} -f cart-service/Dockerfile cart-service/
+                        """
                     } else if (fileExists('cartservice/Dockerfile')) {
                         echo "✅ Found Dockerfile in cartservice folder"
-                        sh "docker build -t Ecommerse/cart-service -t ${fullImageTag} -f cartservice/Dockerfile cartservice/"
+                        sh """
+                            ACCOUNT_ID=\$(aws sts get-caller-identity --query Account --output text)
+                            LOCAL_ECR_URL="\${ACCOUNT_ID}.dkr.ecr.${env.AWS_DEFAULT_REGION}.amazonaws.com"
+                            FULL_IMAGE_TAG="\${LOCAL_ECR_URL}/${env.TARGET_SERVICE}:${env.ACTUAL_BRANCH}-${env.BUILD_NUMBER}"
+                            
+                            docker build -t Ecommerse/cart-service -t \${FULL_IMAGE_TAG} -f cartservice/Dockerfile cartservice/
+                        """
                     } else if (fileExists('Dockerfile')) {
                         echo "✅ Found Dockerfile in Root directory"
-                        sh "docker build -t Ecommerse/cart-service -t ${fullImageTag} ."
+                        sh """
+                            ACCOUNT_ID=\$(aws sts get-caller-identity --query Account --output text)
+                            LOCAL_ECR_URL="\${ACCOUNT_ID}.dkr.ecr.${env.AWS_DEFAULT_REGION}.amazonaws.com"
+                            FULL_IMAGE_TAG="\${LOCAL_ECR_URL}/${env.TARGET_SERVICE}:${env.ACTUAL_BRANCH}-${env.BUILD_NUMBER}"
+                            
+                            docker build -t Ecommerse/cart-service -t \${FULL_IMAGE_TAG} .
+                        """
                     } else {
                         error "Pipeline stopped due to missing Dockerfile"
                      }
                  }
              }
          }
-
          stage('AWS ECR Login') {
             steps {
                 echo "Logging into Amazon ECR Registry..."
