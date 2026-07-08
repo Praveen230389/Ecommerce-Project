@@ -82,22 +82,9 @@ pipeline {
 
          stage('AWS ECR Login') {
             steps {
-                echo "Logging into Amazon ECR Registry and verifying repository existence..."
+                echo "Logging into Amazon ECR Registry..."
                 sh """
                     ACCOUNT_ID=\$(aws sts get-caller-identity --query Account --output text)
-                    
-                    # 🛠️ FIX: चेक करो कि क्या ECR में cart-service नाम की रिपोजिटरी है
-                    aws ecr describe-repositories --repository-names ${env.TARGET_SERVICE} --region ${env.AWS_DEFAULT_REGION} > /dev/null 2>&1
-                    
-                    # अगर नहीं है (Exit code non-zero), तो खुद ही रिपोजिटरी क्रिएट कर दो
-                    if [ \$? -ne 0 ]; then
-                        echo "⚠️ Repository '${env.TARGET_SERVICE}' not found. Creating it dynamically..."
-                        aws ecr create-repository --repository-name ${env.TARGET_SERVICE} --region ${env.AWS_DEFAULT_REGION}
-                    else
-                        echo "✅ Repository '${env.TARGET_SERVICE}' already exists in ECR."
-                    fi
-                    
-                    # अब हमेशा की तरह लॉगिन करो
                     aws ecr get-login-password --region ${env.AWS_DEFAULT_REGION} | docker login --username AWS --password-stdin \${ACCOUNT_ID}.dkr.ecr.${env.AWS_DEFAULT_REGION}.amazonaws.com
                 """
             }
