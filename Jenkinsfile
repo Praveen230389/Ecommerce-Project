@@ -41,7 +41,7 @@ pipeline {
         stage("Docker Image Build") {
             steps {
                 script {
-                    dir('cartservice') { // 🛠️ FIX 3: 'cartservice/Dockerfile' से फ़ाइल हटाकर सिर्फ फोल्डर पाथ दिया
+                    dir('cartservice/Dockerfile') { // 🛠️ FIX 3: 'cartservice/Dockerfile' से फ़ाइल हटाकर सिर्फ फोल्डर पाथ दिया
                         sh 'docker system prune -f'
                         sh 'docker container prune -f'
                         sh 'docker build -t Ecommerse/cart-service .'
