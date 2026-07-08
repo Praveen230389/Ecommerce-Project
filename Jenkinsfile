@@ -152,7 +152,7 @@ pipeline {
                         kubectl apply -f ./k8s/ -n \${NAMESPACE} || true
                     fi
 
-                    # 4. सर्विस स्पेसिफिक (cart-service) manifests को अप्लाई करना (Fix applied here)
+                    # 4. सर्विस स्पेसिफिक (cart-service) manifests को अप्लाई करना
                     K8S_DIR="./${env.TARGET_SERVICE}/k8s"
                     if [ -d "\${K8S_DIR}" ]; then
                         echo "📦 Applying Service-specific manifests from \${K8S_DIR}..."
@@ -166,7 +166,8 @@ pipeline {
                 """
             }
         }
-    
+    } // 🛠️ FIX: यह ब्रैकेट 'stages' ब्लॉक को बंद करने के लिए ज़रूरी था
+
     post {
         always {
             script {
