@@ -41,25 +41,26 @@ pipeline {
         stage("Docker Image Build") {
             steps {
                 script {
-                    // कोई dir ब्लॉक नहीं, सीधे रूट वर्कस्पेस से कमांड चलाएंगे
                     sh 'docker system prune -f'
                     sh 'docker container prune -f'
                     
-                    // 🛡️ सेफगार्ड: अगर नाम 'cart-service' है या 'cartservice', यह दोनों को चेक कर लेगा
+                    // AWS ECR का पूरा URL जनरेट करना
+                    def accountId = sh(script: "aws sts get-caller-identity --query Account --output text", returnStdout: true).trim()
+                    def ecrUrl = "${accountId}.dkr.ecr.${env.AWS_DEFAULT_REGION}.amazonaws.com"
+                    // यही वो डायनामिक टैग है जो पुश स्टेज में इस्तेमाल हो रहा है
+                    def fullImageTag = "${ecrUrl}/${env.TARGET_SERVICE}:${env.ACTUAL_BRANCH}-${env.BUILD_NUMBER}"
+                    
                     if (fileExists('cart-service/Dockerfile')) {
                         echo "✅ Found Dockerfile in cart-service folder"
-                        sh 'docker build -t Ecommerse/cart-service -f cart-service/Dockerfile cart-service/'
+                        // 🛠️ FIX: लोकल नाम के साथ-साथ सीधे AWS ECR के नाम से भी बिल्ड कर रहे हैं
+                        sh "docker build -t Ecommerse/cart-service -t ${fullImageTag} -f cart-service/Dockerfile cart-service/"
                     } else if (fileExists('cartservice/Dockerfile')) {
                         echo "✅ Found Dockerfile in cartservice folder"
-                        sh 'docker build -t Ecommerse/cart-service -f cartservice/Dockerfile cartservice/'
+                        sh "docker build -t Ecommerse/cart-service -t ${fullImageTag} -f cartservice/Dockerfile cartservice/"
                     } else if (fileExists('Dockerfile')) {
                         echo "✅ Found Dockerfile in Root directory"
-                        sh 'docker build -t Ecommerse/cart-service .'
+                        sh "docker build -t Ecommerse/cart-service -t ${fullImageTag} ."
                     } else {
-                        echo "❌ ERROR: पूरे प्रोजेक्ट में कहीं भी Dockerfile नहीं मिली!"
-                        sh 'ls -la'
-                        sh 'ls -la cart-service || true'
-                        sh 'ls -la cartservice || true'
                         error "Pipeline stopped due to missing Dockerfile"
                      }
                  }
