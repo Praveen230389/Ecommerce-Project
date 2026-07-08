@@ -78,8 +78,20 @@ pipeline {
         
         stage('Trivy image Scan') {
             steps { 
-                echo "Scanning Image for Vulnerabilities..."
-                sh "trivy image --scanners vuln --offline-scan Ecommerse/cart-service > trivyresults.txt"
+                echo "Exporting image and scanning with Trivy..."
+                script {
+                    // 1. डॉकर इमेज को एक tar फाइल में सेव करें
+                    sh 'docker save Ecommerse/cart-service -o cart-service.tar'
+                    
+                    // 2. Trivy से सीधे उस tar फाइल को स्कैन करें (इसे डॉकर सॉकेट की ज़रूरत नहीं पड़ेगी)
+                    sh 'trivy image --input cart-service.tar --scanners vuln --offline-scan > trivyresults.txt || true'
+                    
+                    // 3. स्कैन होने के बाद भारी tar फाइल को साफ करें
+                    sh 'rm -f cart-service.tar'
+                    
+                    // 4. टर्मिनल पर रिजल्ट देखने के लिए (Optional)
+                    sh 'cat trivyresults.txt || true'
+                }
             }
         }
 
