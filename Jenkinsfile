@@ -30,7 +30,7 @@ pipeline {
         
         stage('git checkout') {
             steps {
-                git branch: 'master', url: 'https://github.com/Praveen230389/maven-web-app-new.git'
+                git branch: 'main', url: 'https://github.com/Praveen230389/Ecommerce-Project.git'
             }
         }
         
