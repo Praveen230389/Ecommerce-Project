@@ -470,9 +470,7 @@ stage('Final Cluster Summary') {
         '''
     }
 }
-
-    
-    post {
+     post {
         always {
             script {
                 echo "Cleaning up local workspace cache..."
