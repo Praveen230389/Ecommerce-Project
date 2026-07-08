@@ -31,7 +31,7 @@ pipeline {
         
         stage('Git Checkout') {
             steps {
-                git branch: 'main', url: 'https://github.com'
+                git branch: 'main', url: 'https://github.com/Praveen230389/Ecommerce-Project.git'
                 script {
                     env.ACTUAL_BRANCH = 'main'
                 }
