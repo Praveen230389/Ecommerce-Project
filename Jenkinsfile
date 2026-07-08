@@ -41,14 +41,30 @@ pipeline {
         stage("Docker Image Build") {
             steps {
                 script {
-                    dir('cartservice/Dockerfile') { // 🛠️ FIX 3: 'cartservice/Dockerfile' से फ़ाइल हटाकर सिर्फ फोल्डर पाथ दिया
-                        sh 'docker system prune -f'
-                        sh 'docker container prune -f'
+                    // कोई dir ब्लॉक नहीं, सीधे रूट वर्कस्पेस से कमांड चलाएंगे
+                    sh 'docker system prune -f'
+                    sh 'docker container prune -f'
+                    
+                    // 🛡️ सेफगार्ड: अगर नाम 'cart-service' है या 'cartservice', यह दोनों को चेक कर लेगा
+                    if (fileExists('cart-service/Dockerfile')) {
+                        echo "✅ Found Dockerfile in cart-service folder"
+                        sh 'docker build -t Ecommerse/cart-service -f cart-service/Dockerfile cart-service/'
+                    } else if (fileExists('cartservice/Dockerfile')) {
+                        echo "✅ Found Dockerfile in cartservice folder"
+                        sh 'docker build -t Ecommerse/cart-service -f cartservice/Dockerfile cartservice/'
+                    } else if (fileExists('Dockerfile')) {
+                        echo "✅ Found Dockerfile in Root directory"
                         sh 'docker build -t Ecommerse/cart-service .'
-                    }
-                }
-            }
-        }
+                    } else {
+                        echo "❌ ERROR: पूरे प्रोजेक्ट में कहीं भी Dockerfile नहीं मिली!"
+                        sh 'ls -la'
+                        sh 'ls -la cart-service || true'
+                        sh 'ls -la cartservice || true'
+                        error "Pipeline stopped due to missing Dockerfile"
+                     }
+                 }
+             }
+         }
 
          stage('AWS ECR Login') {
             steps {
