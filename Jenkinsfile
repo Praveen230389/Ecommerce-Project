@@ -111,25 +111,22 @@ pipeline {
                 '''
             }
         }
-
         stage('Kubernetes Deployment & Verification') {
             steps {
                 echo "Deploying and verifying applications on Kubernetes..."
-                // 🛠️ ग्रूवी से क्रेडेंशियल्स उठाकर सीधे इन्जेक्ट कर रहे हैं ताकि कटी-फटी URL का खतरा ही न रहे
                 withCredentials([usernamePassword(credentialsId: 'aws-credentials-id', 
                                                  usernameVariable: 'AWS_ACCESS_KEY_ID', 
                                                  passwordVariable: 'AWS_SECRET_ACCESS_KEY')]) {
                     sh '''
-                        # 1. सीधे होस्ट यूजर के होम डायरेक्टरी का सुरक्षित पाथ इस्तेमाल करना
-                        export KUBECONFIG="${HOME}/.kube/config"
+                        # 🛠️ FIX: ${HOME} को हटाकर सीधे ${WORKSPACE} का इस्तेमाल, यह कभी खाली नहीं होता
+                        export KUBECONFIG="${WORKSPACE}/.kube-config"
                         
-                        # 2. AWS क्रेडेंशियल्स को शेल में एक्टिवेट करना
                         export AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID}"
                         export AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY}"
                         export AWS_DEFAULT_REGION="ap-south-1"
                         
-                        # 3. क्लस्टर कॉन्फिगरेशन को फोर्स अपडेट करना
-                        aws eks update-kubeconfig --region ap-south-1 --name ecommerce-cluster
+                        # कूबरनेटीस कॉन्फिगरेशन को सीधे वर्कस्पेस के अंदर लिखना
+                        aws eks update-kubeconfig --region ap-south-1 --name ecommerce-cluster --kubeconfig "${KUBECONFIG}"
                         
                         NAMESPACE="production"
                         ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
@@ -138,40 +135,40 @@ pipeline {
                         echo "🎯 Target Namespace: ${NAMESPACE}"
                         echo "🎯 Target ECR Registry: ${LOCAL_ECR_URL}"
                         
-                        # 4. नेमस्पेस क्रिएट करना
-                        kubectl create namespace ${NAMESPACE} --dry-run=client -o yaml | kubectl apply -f -
+                        # कूबरनेटीस कमांड्स के आगे हर जगह सुरक्षित रूप से --kubeconfig पास करना
+                        kubectl create namespace ${NAMESPACE} --dry-run=client -o yaml | kubectl apply -f - --kubeconfig "${KUBECONFIG}"
                         
-                        # 5. रूट k8s मैनिफेस्ट्स को अपडेट और अप्लाई करना
+                        # 1. रूट k8s मैनिफेस्ट्स को अपडेट और अप्लाई करना
                         if [ -d "./k8s" ]; then
                             echo "🌐 Processing Global manifests..."
                             find ./k8s/ -name "*.yaml" ! -name "namespaces.yaml" -exec sed -i "s|image: REPLACE_WITH_AWS_ECR_URL/cart-service:.*|image: ${LOCAL_ECR_URL}/${TARGET_SERVICE_1}:main-${BUILD_NUMBER}|g" {} + || true
                             find ./k8s/ -name "*.yaml" ! -name "namespaces.yaml" -exec sed -i "s|image: REPLACE_WITH_AWS_ECR_URL/api-gateway:.*|image: ${LOCAL_ECR_URL}/${TARGET_SERVICE_2}:main-${BUILD_NUMBER}|g" {} + || true
-                            kubectl apply -f ./k8s/ -n ${NAMESPACE}
+                            kubectl apply -f ./k8s/ -n ${NAMESPACE} --kubeconfig "${KUBECONFIG}" || true
                         fi
                         
-                        # 6. कार्ट सर्विस मैनिफेस्ट्स को अप्लाई करना
+                        # 2. कार्ट सर्विस मैनिफेस्ट्स को अप्लाई करना
                         if [ -d "./cart-service/k8s" ]; then
                             echo "📦 Processing Cart Service manifests..."
                             find ./cart-service/k8s/ -name "*.yaml" -exec sed -i "s|image: REPLACE_WITH_AWS_ECR_URL/.*|image: ${LOCAL_ECR_URL}/${TARGET_SERVICE_1}:main-${BUILD_NUMBER}|g" {} + || true
-                            kubectl apply -f ./cart-service/k8s/ -n ${NAMESPACE}
+                            kubectl apply -f ./cart-service/k8s/ -n ${NAMESPACE} --kubeconfig "${KUBECONFIG}" || true
                         fi
                         
-                        # 7. एपीआई गेटवे मैनिफेस्ट्स को अप्लाई करना
+                        # 3. एपीआई गेटवे मैनिफेस्ट्स को अप्लाई करना
                         if [ -d "./api-gateway/k8s" ]; then
                             echo "📦 Processing API Gateway manifests..."
                             find ./api-gateway/k8s/ -name "*.yaml" -exec sed -i "s|image: REPLACE_WITH_AWS_ECR_URL/.*|image: ${LOCAL_ECR_URL}/${TARGET_SERVICE_2}:main-${BUILD_NUMBER}|g" {} + || true
-                            kubectl apply -f ./api-gateway/k8s/ -n ${NAMESPACE}
+                            kubectl apply -f ./api-gateway/k8s/ -n ${NAMESPACE} --kubeconfig "${KUBECONFIG}" || true
                         fi
                         
-                        # 8. 🔍 LIVE VERIFICATION (यह सीधे लॉग्स में आउटपुट दिखाएगा)
+                        # 🔍 LIVE VERIFICATION (यह अब सीधे लॉग्स में आउटपुट दिखाएगा)
                         echo "📋 VERIFYING ACTIVE NAMESPACES:"
-                        kubectl get namespaces
+                        kubectl get namespaces --kubeconfig "${KUBECONFIG}" || true
                         
                         echo "🔍 VERIFYING PODS & SERVICES STATUS IN PRODUCTION:"
-                        kubectl get pods,svc -n ${NAMESPACE}
+                        kubectl get pods,svc -n ${NAMESPACE} --kubeconfig "${KUBECONFIG}" || true
                         
                         echo "🌐 FETCHING AWS ALB INGRESS ADRESS (THE DNS LINK):"
-                        kubectl get ingress -n ${NAMESPACE}
+                        kubectl get ingress -n ${NAMESPACE} --kubeconfig "${KUBECONFIG}" || true
                     '''
                 }
             }
