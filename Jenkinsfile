@@ -470,13 +470,14 @@ stage('Final Cluster Summary') {
         '''
     }
 }
-     post {
-        always {
-            script {
-                echo "Cleaning up local workspace cache..."
-                sh "docker image prune -f || true"
-                cleanWs()
-            }
-        }
+        post {
+           always {
+               script {
+                   echo "Cleaning up local workspace cache..."
+                   sh "docker image prune -f || true"
+                   cleanWs()
+               }
+           }
+       }
     }
 }
