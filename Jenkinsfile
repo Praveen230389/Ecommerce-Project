@@ -122,7 +122,7 @@ pipeline {
             }
         }
 
-        ('Docker Push Image') {
+        stage('Docker Push Image') {
             steps {
                 echo "Pushing verified image to Amazon ECR Repository..."
                 sh """
