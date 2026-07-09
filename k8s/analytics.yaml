@@ -27,10 +27,10 @@ spec:
         - containerPort: 8080  # हमारी प्रोडक्शन डॉकरफाइल का स्टैंडर्ड पोर्ट
         resources:
           limits:
-            cpu: "500m"
-            memory: "512Mi"
+            cpu: "200m"
+            memory: "128Mi"
           requests:
-            cpu: "250m"
+            cpu: "50m"
             memory: "256Mi"
 ---
 apiVersion: v1
