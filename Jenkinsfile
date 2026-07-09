@@ -13,8 +13,7 @@ pipeline {
 
     environment {
         AWS_DEFAULT_REGION = "ap-south-1"
-        TARGET_SERVICE_1   = "cart-service"
-        TARGET_SERVICE_2   = "api-gateway"
+        MY_SERVICE         = "analytics-service"
 
         // 🔐 ग्लोबल लेवल क्रेडेंशियल्स
         AWS_CREDENTIALS = credentials('aws-credentials-id')
@@ -38,35 +37,19 @@ pipeline {
             }
         }
 
-        stage("Docker Image Build (Cart Service)") {
-            steps {
-                script {
-                    sh 'docker system prune -f'
-                    sh 'docker container prune -f'
+        stage("Docker Image Build (analytics-service)") {
+           steps {
+              script {
+                 sh 'docker system prune -f'
+                 sh '''
+                   ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+                   LOCAL_ECR_URL="${ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com"
+                   FULL_IMAGE_TAG="${LOCAL_ECR_URL}/${MY_SERVICE}:${ACTUAL_BRANCH}-${BUILD_NUMBER}"
 
-                    sh '''
-                        ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-                        LOCAL_ECR_URL="${ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com"
-                        FULL_IMAGE_TAG="${LOCAL_ECR_URL}/${TARGET_SERVICE_1}:${ACTUAL_BRANCH}-${BUILD_NUMBER}"
-
-                        echo "Building ${TARGET_SERVICE_1}..."
-                        docker build -t Ecommerse/${TARGET_SERVICE_1} -t ${FULL_IMAGE_TAG} -f cart-service/Dockerfile cart-service/
-                    '''
-                }
-            }
-        }
-
-        stage("Docker Image Build (API Gateway)") { // 🎯 NEW STAGE: एपीआई गेटवे का ऑटो-बिल्ड
-            steps {
-                script {
-                    sh '''
-                        ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-                        LOCAL_ECR_URL="${ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com"
-                        FULL_IMAGE_TAG="${LOCAL_ECR_URL}/${TARGET_SERVICE_2}:${ACTUAL_BRANCH}-${BUILD_NUMBER}"
-
-                        echo "Building ${TARGET_SERVICE_2}..."
-                        docker build -t Ecommerse/${TARGET_SERVICE_2} -t ${FULL_IMAGE_TAG} -f api-gateway/Dockerfile api-gateway/
-                    '''
+                   echo "Building image for ${MY_SERVICE}..."
+                   # 🎯 ध्यान दें: यहाँ हार्डकोडेड पाथ हटाकर ${MY_SERVICE} फोल्डर और Dockerfile को टारगेट किया है
+                   docker build -t Ecommerse/${MY_SERVICE} -t ${FULL_IMAGE_TAG} -f ${MY_SERVICE}/Dockerfile ${MY_SERVICE}/
+                  '''
                 }
             }
         }
@@ -82,33 +65,24 @@ pipeline {
         }
 
         stage('Trivy Image Scan') {
-            steps {
-                echo "Exporting images and scanning with Trivy..."
-                script {
-                    sh 'docker save Ecommerse/cart-service -o cart-service.tar'
-                    sh 'trivy image --input cart-service.tar --scanners vuln --offline-scan > trivyresults-cart.txt || true'
-
-                    sh 'docker save Ecommerse/api-gateway -o api-gateway.tar'
-                    sh 'trivy image --input api-gateway.tar --scanners vuln --offline-scan > trivyresults-gateway.txt || true'
-
-                    sh 'rm -f cart-service.tar api-gateway.tar'
-                }
-            }
+           steps { 
+              script {
+                sh "docker save Ecommerse/${env.MY_SERVICE} -o service.tar"
+                sh "trivy image --input service.tar --scanners vuln --offline-scan > trivyresults.txt || true"
+                sh "rm -f service.tar"
+               }
+           }
         }
 
-        stage('Docker Push Images') {
-            steps {
-                echo "Pushing verified images to Amazon ECR Repository..."
-                sh '''
-                    ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-                    LOCAL_ECR_URL="${ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com"
+        stage('Docker Push Image') {
+           steps {
+              sh '''
+              ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+              LOCAL_ECR_URL="${ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com"
 
-                    echo "Pushing Cart Service..."
-                    docker push ${LOCAL_ECR_URL}/${TARGET_SERVICE_1}:${ACTUAL_BRANCH}-${BUILD_NUMBER}
-
-                    echo "Pushing API Gateway..."
-                    docker push ${LOCAL_ECR_URL}/${TARGET_SERVICE_2}:${ACTUAL_BRANCH}-${BUILD_NUMBER}
-                '''
+              echo "Pushing ${MY_SERVICE} to ECR..."
+              docker push ${LOCAL_ECR_URL}/${MY_SERVICE}:${ACTUAL_BRANCH}-${BUILD_NUMBER}
+              '''
             }
         }
 
@@ -266,33 +240,28 @@ pipeline {
             }
         }
 
-        stage('Update Cart Service Manifest') {
-            steps {
-                sh '''
-                    source deploy.env
-
-                    if [ -d "./cart-service/k8s" ]; then
-
-                        find ./cart-service/k8s \
-                        -name "*.yaml" \
-                        -exec sed -i \
-                        "s|image: REPLACE_WITH_AWS_ECR_URL/.*|image: ${ECR}/${TARGET_SERVICE_1}:main-${BUILD_NUMBER}|g" {} +
-                    fi
-                '''
+        stage('Update Service Manifest') {
+           steps {
+              sh '''
+              source deploy.env
+              # 🎯 ध्यान दें: अब यह सीधे आपके ${MY_SERVICE}/k8s फोल्डर के अंदर जाएगा
+              if [ -d "./${MY_SERVICE}/k8s" ]; then
+                find ./${MY_SERVICE}/k8s -name "*.yaml" -exec sed -i "s|image: REPLACE_WITH_AWS_ECR_URL/.*|image: ${ECR}/${MY_SERVICE}:main-${BUILD_NUMBER}|g" {} +
+              fi
+              '''
             }
         }
 
-        stage('Deploy Cart Service') {
-            steps {
-                sh '''
-                    source deploy.env
-
-                    export KUBECONFIG="${WORKSPACE}/.kube-config"
-
-                    if [ -d "./cart-service/k8s" ]; then
-                        kubectl apply -f ./cart-service/k8s -n ${NAMESPACE} || true
-                    fi
-                '''
+        stage('Deploy Service to EKS') {
+           steps {
+              sh '''
+              source deploy.env
+              export KUBECONFIG="${WORKSPACE}/.kube-config"
+              if [ -d "./${MY_SERVICE}/k8s" ]; then
+                # 🎯 क्लस्टर पर सिर्फ़ इसी सर्विस के मेनिफेस्ट्स अप्लाई होंगे
+                kubectl apply -f ./${MY_SERVICE}/k8s -n ${NAMESPACE} || true
+              fi
+              '''
             }
         }
 
