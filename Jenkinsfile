@@ -216,7 +216,7 @@ pipeline {
                         echo "🚀 Global Infrastructure not found. Initializing Cluster Base..."
                         
                         if [ -d "./k8s" ]; then
-                            # 🎯 FIX: यहाँ हार्डकोडेड 'cart-service' या 'api-gateway' लिखने के बजाय, 
+                            # 🎯 FIX: यहाँ हार्डकोडेड 'analytics-servics, 
                             # यह कमांड पूरे फोल्डर की सभी YAML फाइल्स में लिखे 'REPLACE_WITH_AWS_ECR_URL' को 
                             # आपके असली ECR URL से एक बार में डायनामिकली बदल देगी!
                             find ./k8s -name "*.yaml" ! -name "namespaces.yaml" -exec sed -i "s|REPLACE_WITH_AWS_ECR_URL|${ECR}|g" {} + || true
@@ -233,38 +233,37 @@ pipeline {
         }
 
         stage('Update Service Manifest') {
-           steps {
-              sh '''
-              source deploy.env
-              # 🎯 ध्यान दें: अब यह सीधे आपके ${MY_SERVICE}/k8s फोल्डर के अंदर जाएगा
-              if [ -d "./${MY_SERVICE}/k8s" ]; then
-                find ./${MY_SERVICE}/k8s -name "*.yaml" -exec sed -i "s|image: REPLACE_WITH_AWS_ECR_URL/.*|image: ${ECR}/${MY_SERVICE}:main-${BUILD_NUMBER}|g" {} +
-              fi
-              '''
+            steps {
+                sh '''
+                    source deploy.env
+                    if [ -d "./${MY_SERVICE}/k8s" ]; then
+                        # 🎯 अब यह डायनामिकली सीधे analytics-service की ही इमेज और पाथ सेट करेगा
+                        find ./${MY_SERVICE}/k8s -name "*.yaml" -exec sed -i "s|image: REPLACE_WITH_AWS_ECR_URL/.*|image: ${ECR}/${MY_SERVICE}:main-${BUILD_NUMBER}|g" {} +
+                    fi
+                '''
             }
         }
 
         stage('Deploy Service to EKS') {
-           steps {
-              sh '''
-              source deploy.env
-              export KUBECONFIG="${WORKSPACE}/.kube-config"
-              if [ -d "./${MY_SERVICE}/k8s" ]; then
-                # 🎯 क्लस्टर पर सिर्फ़ इसी सर्विस के मेनिफेस्ट्स अप्लाई होंगे
-                kubectl apply -f ./${MY_SERVICE}/k8s -n ${NAMESPACE} || true
-              fi
-              '''
+            steps {
+                sh '''
+                    source deploy.env
+                    export KUBECONFIG="${WORKSPACE}/.kube-config"
+                    if [ -d "./${MY_SERVICE}/k8s" ]; then
+                        kubectl apply -f ./${MY_SERVICE}/k8s -n ${NAMESPACE}
+                    fi
+                '''
             }
         }
 
-        stage('Update API Gateway Manifest') {
+        stage('Update analytics Manifest') {
             steps {
                 sh '''
                     source deploy.env
 
-                    if [ -d "./api-gateway/k8s" ]; then
+                    if [ -d "./analytics-service/k8s" ]; then
 
-                        find ./api-gateway/k8s \
+                        find ./analytics-service/k8s \
                         -name "*.yaml" \
                         -exec sed -i \
                         "s|image: REPLACE_WITH_AWS_ECR_URL/.*|image: ${ECR}/${TARGET_SERVICE_2}:main-${BUILD_NUMBER}|g" {} +
@@ -273,15 +272,15 @@ pipeline {
             }
         }
 
-        stage('Deploy API Gateway') {
+        stage('Deploy analytics-service') {
             steps {
                 sh '''
                     source deploy.env
 
                     export KUBECONFIG="${WORKSPACE}/.kube-config"
 
-                    if [ -d "./api-gateway/k8s" ]; then
-                        kubectl apply -f ./api-gateway/k8s -n ${NAMESPACE} || true
+                    if [ -d "./analytics-service/k8s" ]; then
+                        kubectl apply -f ./analytics-service/k8s -n ${NAMESPACE} || true
                     fi
                 '''
             }
@@ -378,24 +377,12 @@ pipeline {
             }
         }
 
-        stage('Rollout Status - Cart Service') {
+        stage('Rollout Status - analytics-Service') {
             steps {
                 sh '''
                     export KUBECONFIG="${WORKSPACE}/.kube-config"
 
-                    kubectl rollout status deployment/cart-service \
-                    -n production \
-                    --timeout=60s || true
-                '''
-            }
-        }
-
-        stage('Rollout Status - API Gateway') {
-            steps {
-                sh '''
-                    export KUBECONFIG="${WORKSPACE}/.kube-config"
-
-                    kubectl rollout status deployment/api-gateway \
+                    kubectl rollout status deployment/analytics-service \
                     -n production \
                     --timeout=60s || true
                 '''
