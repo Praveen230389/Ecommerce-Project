@@ -291,7 +291,7 @@ pipeline {
                 sh '''
                     export KUBECONFIG="${WORKSPACE}/.kube-config"
 
-                    kubectl get deployment -n production
+                    kubectl get deployment -n ${NAMESPACE}
                 '''
             }
         }
@@ -301,7 +301,7 @@ pipeline {
                 sh '''
                     export KUBECONFIG="${WORKSPACE}/.kube-config"
 
-                    kubectl get rs -n production
+                    kubectl get rs -n ${NAMESPACE}
                 '''
             }
         }
@@ -311,7 +311,7 @@ pipeline {
                 sh '''
                     export KUBECONFIG="${WORKSPACE}/.kube-config"
 
-                    kubectl get pods -n production -o wide
+                    kubectl get pods -n ${NAMESPACE} -o wide
                 '''
             }
         }
@@ -321,14 +321,14 @@ pipeline {
                 sh '''
                     export KUBECONFIG="${WORKSPACE}/.kube-config"
 
-                    kubectl get pods -n production \
+                    kubectl get pods -n ${NAMESPACE} \
                     --field-selector=status.phase=Pending \
                     -o name | while read pod
                     do
                         echo "====================================="
                         echo "$pod"
                         echo "====================================="
-                        kubectl describe $pod -n production || true
+                        kubectl describe $pod -n ${NAMESPACE} || true
                     done
                 '''
             }
@@ -339,7 +339,7 @@ pipeline {
                 sh '''
                     export KUBECONFIG="${WORKSPACE}/.kube-config"
 
-                    kubectl get svc -n production
+                    kubectl get svc -n ${NAMESPACE}
                 '''
             }
         }
@@ -349,7 +349,7 @@ pipeline {
                 sh '''
                     export KUBECONFIG="${WORKSPACE}/.kube-config"
 
-                    kubectl get endpoints -n production
+                    kubectl get endpoints -n ${NAMESPACE}
                 '''
             }
         }
@@ -359,8 +359,8 @@ pipeline {
                 sh '''
                     export KUBECONFIG="${WORKSPACE}/.kube-config"
 
-                    kubectl get ingress -n production
-                    kubectl describe ingress -n production || true
+                    kubectl get ingress -n ${NAMESPACE}
+                    kubectl describe ingress -n ${NAMESPACE} || true
                 '''
             }
         }
@@ -371,7 +371,7 @@ pipeline {
                     export KUBECONFIG="${WORKSPACE}/.kube-config"
 
                     kubectl get events \
-                    -n production \
+                    -n ${NAMESPACE} \
                     --sort-by=.metadata.creationTimestamp | tail -100 || true
                 '''
             }
@@ -383,7 +383,7 @@ pipeline {
                     export KUBECONFIG="${WORKSPACE}/.kube-config"
 
                     kubectl rollout status deployment/analytics-service \
-                    -n production \
+                    -n ${WORKSPACE} \
                     --timeout=60s || true
                 '''
             }
@@ -402,19 +402,19 @@ pipeline {
 
                     echo ""
 
-                    kubectl get deployment -n production
+                    kubectl get deployment -n ${NAMESPACE}
 
                     echo ""
 
-                    kubectl get pods -n production -o wide
+                    kubectl get pods -n ${NAMESPACE} -o wide
 
                     echo ""
 
-                    kubectl get svc -n production
+                    kubectl get svc -n ${NAMESPACE}
 
                     echo ""
 
-                    kubectl get ingress -n production
+                    kubectl get ingress -n ${NAMESPACE}
                 '''
             }
         }
