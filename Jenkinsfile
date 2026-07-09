@@ -203,38 +203,30 @@ pipeline {
             }
         }
 
-        stage('Update Global Kubernetes Manifests') {
+        stage('Update & Apply Global Core Infrastructure') {
             steps {
                 sh '''
                     source deploy.env
-
-                    if [ -d "./k8s" ]; then
-
-                        find ./k8s \
-                        -name "*.yaml" \
-                        ! -name "namespaces.yaml" \
-                        -exec sed -i \
-                        "s|image: REPLACE_WITH_AWS_ECR_URL/cart-service:.*|image: ${ECR}/${TARGET_SERVICE_1}:main-${BUILD_NUMBER}|g" {} +
-
-                        find ./k8s \
-                        -name "*.yaml" \
-                        ! -name "namespaces.yaml" \
-                        -exec sed -i \
-                        "s|image: REPLACE_WITH_AWS_ECR_URL/api-gateway:.*|image: ${ECR}/${TARGET_SERVICE_2}:main-${BUILD_NUMBER}|g" {} +
-                    fi
-                '''
-            }
-        }
-
-        stage('Apply Global Kubernetes Manifests') {
-            steps {
-                sh '''
-                    source deploy.env
-
                     export KUBECONFIG="${WORKSPACE}/.kube-config"
 
-                    if [ -d "./k8s" ]; then
-                        kubectl apply -f ./k8s -n ${NAMESPACE} || true
+                    # 🎯 कंपनियों का तरीका: पहले चेक करो कि क्या लोड बैलेंसर (Ingress) क्लस्टर में पहले से मौजूद है
+                    if kubectl get ingress -n ${NAMESPACE} --kubeconfig "${KUBECONFIG}" > /dev/null 2>&1; then
+                        echo "🌐 Global Core Infrastructure (ALB Ingress) already exists. Skipping re-apply to prevent downtime."
+                    else
+                        echo "🚀 Global Infrastructure not found. Initializing Cluster Base..."
+                        
+                        if [ -d "./k8s" ]; then
+                            # 🎯 FIX: यहाँ हार्डकोडेड 'cart-service' या 'api-gateway' लिखने के बजाय, 
+                            # यह कमांड पूरे फोल्डर की सभी YAML फाइल्स में लिखे 'REPLACE_WITH_AWS_ECR_URL' को 
+                            # आपके असली ECR URL से एक बार में डायनामिकली बदल देगी!
+                            find ./k8s -name "*.yaml" ! -name "namespaces.yaml" -exec sed -i "s|REPLACE_WITH_AWS_ECR_URL|${ECR}|g" {} + || true
+                            
+                            # यह कमांड कूबरनेटीस मेनिफेस्ट्स के अंदर लिखे जेनरिक्स को इस स्पेसिफिक बिल्ड नंबर से टैग कर देगी
+                            find ./k8s -name "*.yaml" ! -name "namespaces.yaml" -exec sed -i "s|:latest|:main-${BUILD_NUMBER}|g" {} + || true
+                            
+                            echo "🎯 Applying base manifests to cluster..."
+                            kubectl apply -f ./k8s -n ${NAMESPACE} --kubeconfig "${KUBECONFIG}"
+                        fi
                     fi
                 '''
             }
