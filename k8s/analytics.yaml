@@ -6,7 +6,7 @@ metadata:
   labels:
     app: analytics-service
 spec:
-  replicas: 3  # प्रॉडक्शन में लोड झेलने के लिए कम से कम 3 रेप्लिका
+  replicas: 1  # प्रॉडक्शन में लोड झेलने के लिए कम से कम 3 रेप्लिका
   strategy:
     type: RollingUpdate
   selector:
