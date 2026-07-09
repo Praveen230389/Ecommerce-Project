@@ -9,7 +9,7 @@ metadata:
   labels:
     app: ${SERVICE_NAME}
 spec:
-  replicas: 2  # High Availability के लिए कम से कम 2 रेप्लिका कंपनियों का स्टैंडर्ड है
+  replicas: 1  # High Availability के लिए कम से कम 2 रेप्लिका कंपनियों का स्टैंडर्ड है
   strategy:
     type: RollingUpdate  # Zero-Downtime डिप्लॉयमेंट के लिए
     rollingUpdate:
