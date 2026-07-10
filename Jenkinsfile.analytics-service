@@ -206,7 +206,9 @@ pipeline {
         stage('Update & Apply Global Core Infrastructure') {
             steps {
                 sh '''
-                    source deploy.env
+                    set -a
+                    . deploy.env
+                    set +a
                     export KUBECONFIG="${WORKSPACE}/.kube-config"
 
                     # 🎯 कंपनियों का तरीका: पहले चेक करो कि क्या लोड बैलेंसर (Ingress) क्लस्टर में पहले से मौजूद है
