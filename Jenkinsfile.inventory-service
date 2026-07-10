@@ -216,7 +216,7 @@ pipeline {
                         echo "🚀 Global Infrastructure not found. Initializing Cluster Base..."
                         
                         if [ -d "./k8s" ]; then
-                            # 🎯 FIX: यहाँ हार्डकोडेड 'analytics-servics, 
+                            # 🎯 FIX: यहाँ हार्डकोडेड 'inventory-servics, 
                             # यह कमांड पूरे फोल्डर की सभी YAML फाइल्स में लिखे 'REPLACE_WITH_AWS_ECR_URL' को 
                             # आपके असली ECR URL से एक बार में डायनामिकली बदल देगी!
                             find ./k8s -name "*.yaml" ! -name "namespaces.yaml" -exec sed -i "s|REPLACE_WITH_AWS_ECR_URL|${ECR}|g" {} + || true
@@ -256,7 +256,7 @@ pipeline {
             }
         }
 
-        stage('Update analytics Manifest') {
+        stage('Update inventory Manifest') {
             steps {
                 sh '''
                     source deploy.env
