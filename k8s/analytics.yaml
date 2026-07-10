@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: analytics-service
-  namespace: production  # रूट वाली फाइल्स प्रोडक्शन नेमस्पेस के लिए हैं!
+  namespace: ${NAMESPACE}  # रूट वाली फाइल्स प्रोडक्शन नेमस्पेस के लिए हैं!
   labels:
     app: analytics-service
 spec:
@@ -37,7 +37,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: analytics-service
-  namespace: production
+  namespace: ${NAMESPACE}
 spec:
   type: ClusterIP  # पूरी तरह सुरक्षित इंटरनल नेटवर्किंग
   selector:
