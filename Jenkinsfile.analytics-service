@@ -30,7 +30,8 @@ pipeline {
 
         stage('Git Checkout') {
             steps {
-                git branch: 'main', url: 'https://github.com/Praveen230389/Ecommerce-Project.git'
+                git branch: "${env.BRANCH_NAME}",
+                    url: 'https://github.com/Praveen230389/Ecommerce-Project.git'                
                 script {
                     env.ACTUAL_BRANCH = 'main'
                 }
@@ -183,113 +184,126 @@ pipeline {
                 sh '''
                     export KUBECONFIG="${WORKSPACE}/.kube-config"
 
-                    kubectl create namespace production \
+                    kubectl create namespace ${NAMESPACE} \
                     --dry-run=client -o yaml | kubectl apply -f -
                 '''
             }
         }
 
         stage('Prepare Environment Variables') {
-           steps {
-              sh '''
-                  set -e
+    steps {
+        sh '''
+            set -e
 
-                  echo "========================================="
-                  echo "Preparing Environment Variables"
-                  echo "========================================="
+            pwd
+            ls -la
 
-                  pwd
-                  ls -la
+            ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
 
-                  ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+            echo "ACCOUNT_ID=${ACCOUNT_ID}" > "${WORKSPACE}/deploy.env"
+            echo "ECR=${ACCOUNT_ID}.dkr.ecr.ap-south-1.amazonaws.com" >> "${WORKSPACE}/deploy.env"
 
-                  echo "ACCOUNT_ID=${ACCOUNT_ID}" > "${WORKSPACE}/deploy.env"
-                  echo "ECR=${ACCOUNT_ID}.dkr.ecr.ap-south-1.amazonaws.com" >> "${WORKSPACE}/deploy.env"
-                  echo "NAMESPACE=production" >> "${WORKSPACE}/deploy.env"
+            if [ "${ACTUAL_BRANCH}" = "main" ]; then
+                NAMESPACE="production"
+            elif [ "${ACTUAL_BRANCH}" = "develop" ]; then
+                NAMESPACE="dev"
+            elif [ "${ACTUAL_BRANCH}" = "testing" ]; then
+                NAMESPACE="testing"
+            else
+                echo "Unknown Branch : ${ACTUAL_BRANCH}"
+                exit 1
+            fi
 
-                  echo "===== deploy.env Created ====="
-                  ls -l "${WORKSPACE}/deploy.env"
-                  cat "${WORKSPACE}/deploy.env"
-              '''
-             }
-        }
+            echo "NAMESPACE=${NAMESPACE}" >> "${WORKSPACE}/deploy.env"
 
-        stage('Update & Apply Global Core Infrastructure') {
-            steps {
-                sh '''
-                   set -e
+            echo "===== deploy.env ====="
+            cat "${WORKSPACE}/deploy.env"
+        '''
+    }
+}
 
-                   export KUBECONFIG="${WORKSPACE}/.kube-config"
+stage('Update & Apply Global Core Infrastructure') {
+    steps {
+        sh '''
+            set -e
 
-                   echo "========================================="
-                   echo "Checking Workspace"
-                   echo "========================================="
+            export KUBECONFIG="${WORKSPACE}/.kube-config"
 
-                   pwd
-                   ls -la "${WORKSPACE}"
+            set -a
+            . "${WORKSPACE}/deploy.env"
+            set +a
 
-                   if [ ! -f "${WORKSPACE}/deploy.env" ]; then
-                       echo "❌ ERROR: deploy.env NOT FOUND!"
-                       exit 1
-                   fi
+            echo "ACCOUNT_ID=${ACCOUNT_ID}"
+            echo "ECR=${ECR}"
+            echo "NAMESPACE=${NAMESPACE}"
 
-                   echo "===== Loading deploy.env ====="
+            if kubectl get ingress -n "${NAMESPACE}" --kubeconfig "${KUBECONFIG}" >/dev/null 2>&1; then
 
-                   set -a
-                   . "${WORKSPACE}/deploy.env"
-                   set +a
+                echo "Global Infrastructure already exists."
 
-                   echo "ACCOUNT_ID=${ACCOUNT_ID}"
-                   echo "ECR=${ECR}"
-                   echo "NAMESPACE=${NAMESPACE}"
+            else
 
-                   if kubectl get ingress -n "${NAMESPACE}" --kubeconfig "${KUBECONFIG}" >/dev/null 2>&1; then
-                      echo "🌐 Global Core Infrastructure already exists."
-                      echo "Skipping apply."
-                   else
-                      echo "🚀 Global Infrastructure not found."
+                echo "Applying Global Infrastructure..."
 
-                   if [ -d "./k8s" ]; then
+                if [ -d "./k8s" ]; then
 
-                    echo "Updating image registry..."
-
-                    find ./k8s -name "*.yaml" ! -name "namespaces.yaml" \
+                    find ./k8s -name "*.yaml" \
+                    ! -name "namespaces.yaml" \
                     -exec sed -i "s|REPLACE_WITH_AWS_ECR_URL|${ECR}|g" {} +
 
-                    echo "Updating image tag..."
+                    find ./k8s -name "*.yaml" \
+                    ! -name "namespaces.yaml" \
+                    -exec sed -i "s|:latest|:${ACTUAL_BRANCH}-${BUILD_NUMBER}|g" {} +
 
-                    find ./k8s -name "*.yaml" ! -name "namespaces.yaml" \
-                    -exec sed -i "s|:latest|:main-${BUILD_NUMBER}|g" {} +
-
-                    echo "Applying Kubernetes manifests..."
-
-                    kubectl apply -f ./k8s \
+                    kubectl apply \
+                        -f ./k8s \
                         -n "${NAMESPACE}" \
                         --kubeconfig "${KUBECONFIG}"
 
-                    echo "✅ Global manifests applied successfully."
                 else
-                    echo "❌ k8s directory not found."
+
+                    echo "k8s folder not found"
+
                     exit 1
+
                 fi
+
             fi
         '''
     }
 }
         stage('Update Service Manifest') {
-            steps {
-                sh '''
-                    set -a
-                    . "${WORKSPACE}/deploy.env"
-                    set +a
-                    if [ -d "./${MY_SERVICE}/k8s" ]; then
-                        # 🎯 अब यह डायनामिकली सीधे analytics-service की ही इमेज और पाथ सेट करेगा
-                        find ./${MY_SERVICE}/k8s -name "*.yaml" -exec sed -i "s|image: REPLACE_WITH_AWS_ECR_URL/.*|image: ${ECR}/${MY_SERVICE}:main-${BUILD_NUMBER}|g" {} +
-                    fi
-                '''
-            }
-        }
+    steps {
+        sh '''
+            set -e
 
+            set -a
+            . "${WORKSPACE}/deploy.env"
+            set +a
+
+            if [ -d "./${MY_SERVICE}/k8s" ]; then
+
+                echo "Updating ${MY_SERVICE} manifests..."
+
+                find ./${MY_SERVICE}/k8s -name "*.yaml" \
+                -exec sed -i "s|namespace: .*|namespace: ${NAMESPACE}|g" {} +
+
+                find ./${MY_SERVICE}/k8s -name "*.yaml" \
+                -exec sed -i "s|\\${SERVICE_NAME}|${MY_SERVICE}|g" {} +
+
+                find ./${MY_SERVICE}/k8s -name "*.yaml" \
+                -exec sed -i "s|\\${ECR_REGISTRY}|${ECR}|g" {} +
+
+                find ./${MY_SERVICE}/k8s -name "*.yaml" \
+                -exec sed -i "s|\\${IMAGE_TAG}|${ACTUAL_BRANCH}-${BUILD_NUMBER}|g" {} +
+
+                find ./${MY_SERVICE}/k8s -name "*.yaml" \
+                -exec sed -i "s|image: REPLACE_WITH_AWS_ECR_URL/.*|image: ${ECR}/${MY_SERVICE}:${ACTUAL_BRANCH}-${BUILD_NUMBER}|g" {} +
+
+            fi
+        '''
+    }
+}
         stage('Deploy Service to EKS') {
             steps {
                 sh '''
@@ -428,7 +442,7 @@ pipeline {
 
                  export KUBECONFIG="${WORKSPACE}/.kube-config"
 
-                 kubectl rollout status deployment/analytics-service \
+                 kubectl rollout status deployment/${MY_SERVICE} \
                  -n "${NAMESPACE}" \
                  --timeout=60s || true
                 '''
