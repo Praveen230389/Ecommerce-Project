@@ -33,7 +33,7 @@ pipeline {
                 git branch: "${env.BRANCH_NAME}",
                     url: 'https://github.com/Praveen230389/Ecommerce-Project.git'                
                 script {
-                    env.ACTUAL_BRANCH = 'main'
+                    env.ACTUAL_BRANCH = env.BRANCH_NAME
                 }
             }
         }
@@ -286,7 +286,7 @@ stage('Update & Apply Global Core Infrastructure') {
                 echo "Updating ${MY_SERVICE} manifests..."
 
                 find ./${MY_SERVICE}/k8s -name "*.yaml" \
-                -exec sed -i "s|namespace: .*|namespace: ${NAMESPACE}|g" {} +
+                -exec sed -i "s|\\${NAMESPACE}|${NAMESPACE}|g" {} +
 
                 find ./${MY_SERVICE}/k8s -name "*.yaml" \
                 -exec sed -i "s|\\${SERVICE_NAME}|${MY_SERVICE}|g" {} +
@@ -296,11 +296,7 @@ stage('Update & Apply Global Core Infrastructure') {
 
                 find ./${MY_SERVICE}/k8s -name "*.yaml" \
                 -exec sed -i "s|\\${IMAGE_TAG}|${ACTUAL_BRANCH}-${BUILD_NUMBER}|g" {} +
-
-                find ./${MY_SERVICE}/k8s -name "*.yaml" \
-                -exec sed -i "s|image: REPLACE_WITH_AWS_ECR_URL/.*|image: ${ECR}/${MY_SERVICE}:${ACTUAL_BRANCH}-${BUILD_NUMBER}|g" {} +
-
-            fi
+             fi
         '''
     }
 }
