@@ -279,7 +279,9 @@ pipeline {
         stage('Update Service Manifest') {
             steps {
                 sh '''
-                    source deploy.env
+                    set -a
+                    . "${WORKSPACE}/deploy.env"
+                    set +a
                     if [ -d "./${MY_SERVICE}/k8s" ]; then
                         # 🎯 अब यह डायनामिकली सीधे analytics-service की ही इमेज और पाथ सेट करेगा
                         find ./${MY_SERVICE}/k8s -name "*.yaml" -exec sed -i "s|image: REPLACE_WITH_AWS_ECR_URL/.*|image: ${ECR}/${MY_SERVICE}:main-${BUILD_NUMBER}|g" {} +
@@ -291,7 +293,9 @@ pipeline {
         stage('Deploy Service to EKS') {
             steps {
                 sh '''
-                    source deploy.env
+                    set -a
+                    . "${WORKSPACE}/deploy.env"
+                    set +a
                     export KUBECONFIG="${WORKSPACE}/.kube-config"
                     if [ -d "./${MY_SERVICE}/k8s" ]; then
                         kubectl apply -f ./${MY_SERVICE}/k8s -n ${NAMESPACE}
@@ -303,14 +307,16 @@ pipeline {
         stage('Update analytics Manifest') {
             steps {
                 sh '''
-                    source deploy.env
+                    set -a
+                    . "${WORKSPACE}/deploy.env"
+                    set +a
 
                     if [ -d "./analytics-service/k8s" ]; then
 
                         find ./analytics-service/k8s \
                         -name "*.yaml" \
                         -exec sed -i \
-                        "s|image: REPLACE_WITH_AWS_ECR_URL/.*|image: ${ECR}/${TARGET_SERVICE_2}:main-${BUILD_NUMBER}|g" {} +
+                        "s|image: REPLACE_WITH_AWS_ECR_URL/.*|image: ${ECR}/${MY_SERVICE}:main-${BUILD_NUMBER}|g" {} +
                     fi
                 '''
             }
@@ -319,7 +325,9 @@ pipeline {
         stage('Deploy analytics-service') {
             steps {
                 sh '''
-                    source deploy.env
+                    set -a
+                    . "${WORKSPACE}/deploy.env"
+                    set +a
 
                     export KUBECONFIG="${WORKSPACE}/.kube-config"
 
@@ -333,6 +341,9 @@ pipeline {
         stage('Verify Deployments') {
             steps {
                 sh '''
+                    set -a
+                    . "${WORKSPACE}/deploy.env"
+                    set +a
                     export KUBECONFIG="${WORKSPACE}/.kube-config"
 
                     kubectl get deployment -n ${NAMESPACE}
@@ -343,6 +354,9 @@ pipeline {
         stage('Verify ReplicaSets') {
             steps {
                 sh '''
+                    set -a
+                    . "${WORKSPACE}/deploy.env"
+                    set +a
                     export KUBECONFIG="${WORKSPACE}/.kube-config"
 
                     kubectl get rs -n ${NAMESPACE}
@@ -353,6 +367,9 @@ pipeline {
         stage('Verify Pods') {
             steps {
                 sh '''
+                    set -a
+                    . "${WORKSPACE}/deploy.env"
+                    set +a
                     export KUBECONFIG="${WORKSPACE}/.kube-config"
 
                     kubectl get pods -n ${NAMESPACE} -o wide
@@ -363,6 +380,9 @@ pipeline {
         stage('Describe Pending Pods') {
             steps {
                 sh '''
+                    set -a
+                    . "${WORKSPACE}/deploy.env"
+                    set +a
                     export KUBECONFIG="${WORKSPACE}/.kube-config"
 
                     kubectl get pods -n ${NAMESPACE} \
@@ -381,6 +401,9 @@ pipeline {
         stage('Verify Services') {
             steps {
                 sh '''
+                    set -a
+                    . "${WORKSPACE}/deploy.env"
+                    set +a
                     export KUBECONFIG="${WORKSPACE}/.kube-config"
 
                     kubectl get svc -n ${NAMESPACE}
@@ -391,6 +414,9 @@ pipeline {
         stage('Verify Endpoints') {
             steps {
                 sh '''
+                    set -a
+                    . "${WORKSPACE}/deploy.env"
+                    set +a 
                     export KUBECONFIG="${WORKSPACE}/.kube-config"
 
                     kubectl get endpoints -n ${NAMESPACE}
@@ -401,6 +427,9 @@ pipeline {
         stage('Verify Ingress') {
             steps {
                 sh '''
+                    set -a
+                    . "${WORKSPACE}/deploy.env"
+                    set +a
                     export KUBECONFIG="${WORKSPACE}/.kube-config"
 
                     kubectl get ingress -n ${NAMESPACE}
@@ -412,6 +441,9 @@ pipeline {
         stage('Verify Events') {
             steps {
                 sh '''
+                    set -a
+                    . "${WORKSPACE}/deploy.env"
+                    set +a
                     export KUBECONFIG="${WORKSPACE}/.kube-config"
 
                     kubectl get events \
@@ -436,6 +468,9 @@ pipeline {
         stage('Final Cluster Summary') {
             steps {
                 sh '''
+                    set -a
+                    . "${WORKSPACE}/deploy.env"
+                    set +a
                     export KUBECONFIG="${WORKSPACE}/.kube-config"
 
                     echo "==========================================="
