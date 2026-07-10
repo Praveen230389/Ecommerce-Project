@@ -1,0 +1,432 @@
+pipeline {
+    agent any
+
+    options {
+        timeout(time: 1, unit: 'HOURS')
+        buildDiscarder(logRotator(numToKeepStr: '30'))
+        disableConcurrentBuilds()
+    }
+
+    triggers {
+        githubPush()
+    }
+
+    environment {
+        AWS_DEFAULT_REGION = "ap-south-1"
+        MY_SERVICE         = "notification-service"
+
+        // 🔐 ग्लोबल लेवल क्रेडेंशियल्स
+        AWS_CREDENTIALS = credentials('aws-credentials-id')
+        AWS_ACCESS_KEY_ID = "${env.AWS_CREDENTIALS_USR}"
+        AWS_SECRET_ACCESS_KEY = "${env.AWS_CREDENTIALS_PSW}"
+    }
+
+    stages {
+        stage('Workspace Clean') {
+            steps {
+                cleanWs()
+            }
+        }
+
+        stage('Git Checkout') {
+            steps {
+                git branch: 'main', url: 'https://github.com/Praveen230389/Ecommerce-Project.git'
+                script {
+                    env.ACTUAL_BRANCH = 'main'
+                }
+            }
+        }
+
+        stage("Docker Image Build (notification-service)") {
+           steps {
+              script {
+                 sh 'docker system prune -f'
+                 sh '''
+                   ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+                   LOCAL_ECR_URL="${ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com"
+                   FULL_IMAGE_TAG="${LOCAL_ECR_URL}/${MY_SERVICE}:${ACTUAL_BRANCH}-${BUILD_NUMBER}"
+
+                   echo "Building image for ${MY_SERVICE}..."
+                   # 🎯 ध्यान दें: यहाँ हार्डकोडेड पाथ हटाकर ${MY_SERVICE} फोल्डर और Dockerfile को टारगेट किया है
+                   docker build -t Ecommerse/${MY_SERVICE} -t ${FULL_IMAGE_TAG} -f ${MY_SERVICE}/Dockerfile ${MY_SERVICE}/
+                  '''
+                }
+            }
+        }
+
+        stage('AWS ECR Login') {
+            steps {
+                echo "Logging into Amazon ECR Registry..."
+                sh """
+                    ACCOUNT_ID=\$(aws sts get-caller-identity --query Account --output text)
+                    aws ecr get-login-password --region ${env.AWS_DEFAULT_REGION} | docker login --username AWS --password-stdin \${ACCOUNT_ID}.dkr.ecr.${env.AWS_DEFAULT_REGION}.amazonaws.com
+                """
+            }
+        }
+
+        stage('Trivy Image Scan') {
+           steps { 
+              script {
+                sh "docker save Ecommerse/${env.MY_SERVICE} -o service.tar"
+                sh "trivy image --input service.tar --scanners vuln --offline-scan > trivyresults.txt || true"
+                sh "rm -f service.tar"
+               }
+           }
+        }
+
+        stage('Docker Push Image') {
+           steps {
+              sh '''
+              ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+              LOCAL_ECR_URL="${ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com"
+
+              echo "Pushing ${MY_SERVICE} to ECR..."
+              docker push ${LOCAL_ECR_URL}/${MY_SERVICE}:${ACTUAL_BRANCH}-${BUILD_NUMBER}
+              '''
+            }
+        }
+
+        stage('Load AWS Credentials') {
+            steps {
+                withCredentials([
+                    usernamePassword(
+                        credentialsId: 'aws-credentials-id',
+                        usernameVariable: 'AWS_ACCESS_KEY_ID',
+                        passwordVariable: 'AWS_SECRET_ACCESS_KEY'
+                    )
+                ]) {
+                    sh '''
+                        echo "=============================================="
+                        echo "Loading AWS Credentials"
+                        echo "=============================================="
+
+                        export AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID}"
+                        export AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY}"
+                        export AWS_DEFAULT_REGION="ap-south-1"
+
+                        aws sts get-caller-identity
+                    '''
+                }
+            }
+        }
+
+        stage('Generate Kubeconfig') {
+            steps {
+                withCredentials([
+                    usernamePassword(
+                        credentialsId: 'aws-credentials-id',
+                        usernameVariable: 'AWS_ACCESS_KEY_ID',
+                        passwordVariable: 'AWS_SECRET_ACCESS_KEY'
+                    )
+                ]) {
+                    sh '''
+                        export AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID}"
+                        export AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY}"
+                        export AWS_DEFAULT_REGION="ap-south-1"
+
+                        export KUBECONFIG="${WORKSPACE}/.kube-config"
+
+                        aws eks update-kubeconfig \
+                            --region ap-south-1 \
+                            --name ecommerce-cluster \
+                            --kubeconfig "${KUBECONFIG}"
+                    '''
+                }
+            }
+        }
+
+        stage('Verify Cluster Connectivity') {
+            steps {
+                sh '''
+                    export KUBECONFIG="${WORKSPACE}/.kube-config"
+
+                    echo "=============================================="
+                    echo "Cluster Information"
+                    echo "=============================================="
+
+                    kubectl cluster-info
+                    kubectl version --short || true
+                '''
+            }
+        }
+
+        stage('Verify Worker Nodes') {
+            steps {
+                sh '''
+                    export KUBECONFIG="${WORKSPACE}/.kube-config"
+
+                    echo "=============================================="
+                    echo "Worker Nodes"
+                    echo "=============================================="
+
+                    kubectl get nodes -o wide
+                '''
+            }
+        }
+
+        stage('Verify Namespaces') {
+            steps {
+                sh '''
+                    export KUBECONFIG="${WORKSPACE}/.kube-config"
+
+                    echo "=============================================="
+                    echo "Namespaces"
+                    echo "=============================================="
+
+                    kubectl get ns
+                '''
+            }
+        }
+
+        stage('Create Production Namespace') {
+            steps {
+                sh '''
+                    export KUBECONFIG="${WORKSPACE}/.kube-config"
+
+                    kubectl create namespace production \
+                    --dry-run=client -o yaml | kubectl apply -f -
+                '''
+            }
+        }
+
+        stage('Prepare Environment Variables') {
+            steps {
+                sh '''
+                    ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+
+                    echo "ACCOUNT_ID=${ACCOUNT_ID}" > deploy.env
+                    echo "ECR=${ACCOUNT_ID}.dkr.ecr.ap-south-1.amazonaws.com" >> deploy.env
+                    echo "NAMESPACE=production" >> deploy.env
+
+                    cat deploy.env
+                '''
+            }
+        }
+
+        stage('Update & Apply Global Core Infrastructure') {
+            steps {
+                sh '''
+                    source deploy.env
+                    export KUBECONFIG="${WORKSPACE}/.kube-config"
+
+                    # 🎯 कंपनियों का तरीका: पहले चेक करो कि क्या लोड बैलेंसर (Ingress) क्लस्टर में पहले से मौजूद है
+                    if kubectl get ingress -n ${NAMESPACE} --kubeconfig "${KUBECONFIG}" > /dev/null 2>&1; then
+                        echo "🌐 Global Core Infrastructure (ALB Ingress) already exists. Skipping re-apply to prevent downtime."
+                    else
+                        echo "🚀 Global Infrastructure not found. Initializing Cluster Base..."
+                        
+                        if [ -d "./k8s" ]; then
+                            # 🎯 FIX: यहाँ हार्डकोडेड 'notification-servics, 
+                            # यह कमांड पूरे फोल्डर की सभी YAML फाइल्स में लिखे 'REPLACE_WITH_AWS_ECR_URL' को 
+                            # आपके असली ECR URL से एक बार में डायनामिकली बदल देगी!
+                            find ./k8s -name "*.yaml" ! -name "namespaces.yaml" -exec sed -i "s|REPLACE_WITH_AWS_ECR_URL|${ECR}|g" {} + || true
+                            
+                            # यह कमांड कूबरनेटीस मेनिफेस्ट्स के अंदर लिखे जेनरिक्स को इस स्पेसिफिक बिल्ड नंबर से टैग कर देगी
+                            find ./k8s -name "*.yaml" ! -name "namespaces.yaml" -exec sed -i "s|:latest|:main-${BUILD_NUMBER}|g" {} + || true
+                            
+                            echo "🎯 Applying base manifests to cluster..."
+                            kubectl apply -f ./k8s -n ${NAMESPACE} --kubeconfig "${KUBECONFIG}"
+                        fi
+                    fi
+                '''
+            }
+        }
+
+        stage('Update Service Manifest') {
+            steps {
+                sh '''
+                    source deploy.env
+                    if [ -d "./${MY_SERVICE}/k8s" ]; then
+                        # 🎯 अब यह डायनामिकली सीधे notification-service की ही इमेज और पाथ सेट करेगा
+                        find ./${MY_SERVICE}/k8s -name "*.yaml" -exec sed -i "s|image: REPLACE_WITH_AWS_ECR_URL/.*|image: ${ECR}/${MY_SERVICE}:main-${BUILD_NUMBER}|g" {} +
+                    fi
+                '''
+            }
+        }
+
+        stage('Deploy Service to EKS') {
+            steps {
+                sh '''
+                    source deploy.env
+                    export KUBECONFIG="${WORKSPACE}/.kube-config"
+                    if [ -d "./${MY_SERVICE}/k8s" ]; then
+                        kubectl apply -f ./${MY_SERVICE}/k8s -n ${NAMESPACE}
+                    fi
+                '''
+            }
+        }
+
+        stage('Update notification Manifest') {
+            steps {
+                sh '''
+                    source deploy.env
+
+                    if [ -d "./notification-service/k8s" ]; then
+
+                        find ./notification-service/k8s \
+                        -name "*.yaml" \
+                        -exec sed -i \
+                        "s|image: REPLACE_WITH_AWS_ECR_URL/.*|image: ${ECR}/${TARGET_SERVICE_2}:main-${BUILD_NUMBER}|g" {} +
+                    fi
+                '''
+            }
+        }
+
+        stage('Deploy notification-service') {
+            steps {
+                sh '''
+                    source deploy.env
+
+                    export KUBECONFIG="${WORKSPACE}/.kube-config"
+
+                    if [ -d "./notification-service/k8s" ]; then
+                        kubectl apply -f ./notification-service/k8s -n ${NAMESPACE} || true
+                    fi
+                '''
+            }
+        }
+
+        stage('Verify Deployments') {
+            steps {
+                sh '''
+                    export KUBECONFIG="${WORKSPACE}/.kube-config"
+
+                    kubectl get deployment -n ${NAMESPACE}
+                '''
+            }
+        }
+
+        stage('Verify ReplicaSets') {
+            steps {
+                sh '''
+                    export KUBECONFIG="${WORKSPACE}/.kube-config"
+
+                    kubectl get rs -n ${NAMESPACE}
+                '''
+            }
+        }
+
+        stage('Verify Pods') {
+            steps {
+                sh '''
+                    export KUBECONFIG="${WORKSPACE}/.kube-config"
+
+                    kubectl get pods -n ${NAMESPACE} -o wide
+                '''
+            }
+        }
+
+        stage('Describe Pending Pods') {
+            steps {
+                sh '''
+                    export KUBECONFIG="${WORKSPACE}/.kube-config"
+
+                    kubectl get pods -n ${NAMESPACE} \
+                    --field-selector=status.phase=Pending \
+                    -o name | while read pod
+                    do
+                        echo "====================================="
+                        echo "$pod"
+                        echo "====================================="
+                        kubectl describe $pod -n ${NAMESPACE} || true
+                    done
+                '''
+            }
+        }
+
+        stage('Verify Services') {
+            steps {
+                sh '''
+                    export KUBECONFIG="${WORKSPACE}/.kube-config"
+
+                    kubectl get svc -n ${NAMESPACE}
+                '''
+            }
+        }
+
+        stage('Verify Endpoints') {
+            steps {
+                sh '''
+                    export KUBECONFIG="${WORKSPACE}/.kube-config"
+
+                    kubectl get endpoints -n ${NAMESPACE}
+                '''
+            }
+        }
+
+        stage('Verify Ingress') {
+            steps {
+                sh '''
+                    export KUBECONFIG="${WORKSPACE}/.kube-config"
+
+                    kubectl get ingress -n ${NAMESPACE}
+                    kubectl describe ingress -n ${NAMESPACE} || true
+                '''
+            }
+        }
+
+        stage('Verify Events') {
+            steps {
+                sh '''
+                    export KUBECONFIG="${WORKSPACE}/.kube-config"
+
+                    kubectl get events \
+                    -n ${NAMESPACE} \
+                    --sort-by=.metadata.creationTimestamp | tail -100 || true
+                '''
+            }
+        }
+
+        stage('Rollout Status - notification-service') {
+            steps {
+                sh '''
+                    export KUBECONFIG="${WORKSPACE}/.kube-config"
+
+                    kubectl rollout status deployment/notification-service \
+                    -n ${WORKSPACE} \
+                    --timeout=60s || true
+                '''
+            }
+        }
+
+        stage('Final Cluster Summary') {
+            steps {
+                sh '''
+                    export KUBECONFIG="${WORKSPACE}/.kube-config"
+
+                    echo "==========================================="
+                    echo "FINAL DEPLOYMENT STATUS"
+                    echo "==========================================="
+
+                    kubectl get nodes
+
+                    echo ""
+
+                    kubectl get deployment -n ${NAMESPACE}
+
+                    echo ""
+
+                    kubectl get pods -n ${NAMESPACE} -o wide
+
+                    echo ""
+
+                    kubectl get svc -n ${NAMESPACE}
+
+                    echo ""
+
+                    kubectl get ingress -n ${NAMESPACE}
+                '''
+            }
+        }
+    }
+    post {
+        always {
+            script {
+                echo "Cleaning up local workspace cache..."
+                sh "docker image prune -f || true"
+                cleanWs()
+            }
+        }
+    }
+
+}
