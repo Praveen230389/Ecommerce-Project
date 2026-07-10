@@ -190,50 +190,92 @@ pipeline {
         }
 
         stage('Prepare Environment Variables') {
-            steps {
-                sh '''
-                    ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+           steps {
+              sh '''
+                  set -e
 
-                    echo "ACCOUNT_ID=${ACCOUNT_ID}" > deploy.env
-                    echo "ECR=${ACCOUNT_ID}.dkr.ecr.ap-south-1.amazonaws.com" >> deploy.env
-                    echo "NAMESPACE=production" >> deploy.env
+                  echo "========================================="
+                  echo "Preparing Environment Variables"
+                  echo "========================================="
 
-                    cat deploy.env
-                '''
-            }
+                  pwd
+                  ls -la
+
+                  ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+
+                  echo "ACCOUNT_ID=${ACCOUNT_ID}" > "${WORKSPACE}/deploy.env"
+                  echo "ECR=${ACCOUNT_ID}.dkr.ecr.ap-south-1.amazonaws.com" >> "${WORKSPACE}/deploy.env"
+                  echo "NAMESPACE=production" >> "${WORKSPACE}/deploy.env"
+
+                  echo "===== deploy.env Created ====="
+                  ls -l "${WORKSPACE}/deploy.env"
+                  cat "${WORKSPACE}/deploy.env"
+              '''
+             }
         }
 
         stage('Update & Apply Global Core Infrastructure') {
             steps {
                 sh '''
-                    set -a
-                    . deploy.env
-                    set +a
-                    export KUBECONFIG="${WORKSPACE}/.kube-config"
+                   set -e
 
-                    # 🎯 कंपनियों का तरीका: पहले चेक करो कि क्या लोड बैलेंसर (Ingress) क्लस्टर में पहले से मौजूद है
-                    if kubectl get ingress -n ${NAMESPACE} --kubeconfig "${KUBECONFIG}" > /dev/null 2>&1; then
-                        echo "🌐 Global Core Infrastructure (ALB Ingress) already exists. Skipping re-apply to prevent downtime."
-                    else
-                        echo "🚀 Global Infrastructure not found. Initializing Cluster Base..."
-                        
-                        if [ -d "./k8s" ]; then
-                            # 🎯 FIX: यहाँ हार्डकोडेड 'analytics-servics, 
-                            # यह कमांड पूरे फोल्डर की सभी YAML फाइल्स में लिखे 'REPLACE_WITH_AWS_ECR_URL' को 
-                            # आपके असली ECR URL से एक बार में डायनामिकली बदल देगी!
-                            find ./k8s -name "*.yaml" ! -name "namespaces.yaml" -exec sed -i "s|REPLACE_WITH_AWS_ECR_URL|${ECR}|g" {} + || true
-                            
-                            # यह कमांड कूबरनेटीस मेनिफेस्ट्स के अंदर लिखे जेनरिक्स को इस स्पेसिफिक बिल्ड नंबर से टैग कर देगी
-                            find ./k8s -name "*.yaml" ! -name "namespaces.yaml" -exec sed -i "s|:latest|:main-${BUILD_NUMBER}|g" {} + || true
-                            
-                            echo "🎯 Applying base manifests to cluster..."
-                            kubectl apply -f ./k8s -n ${NAMESPACE} --kubeconfig "${KUBECONFIG}"
-                        fi
-                    fi
-                '''
-            }
-        }
+                   export KUBECONFIG="${WORKSPACE}/.kube-config"
 
+                   echo "========================================="
+                   echo "Checking Workspace"
+                   echo "========================================="
+
+                   pwd
+                   ls -la "${WORKSPACE}"
+
+                   if [ ! -f "${WORKSPACE}/deploy.env" ]; then
+                       echo "❌ ERROR: deploy.env NOT FOUND!"
+                       exit 1
+                   fi
+
+                   echo "===== Loading deploy.env ====="
+
+                   set -a
+                   . "${WORKSPACE}/deploy.env"
+                   set +a
+
+                   echo "ACCOUNT_ID=${ACCOUNT_ID}"
+                   echo "ECR=${ECR}"
+                   echo "NAMESPACE=${NAMESPACE}"
+
+                   if kubectl get ingress -n "${NAMESPACE}" --kubeconfig "${KUBECONFIG}" >/dev/null 2>&1; then
+                      echo "🌐 Global Core Infrastructure already exists."
+                      echo "Skipping apply."
+                   else
+                      echo "🚀 Global Infrastructure not found."
+
+                   if [ -d "./k8s" ]; then
+
+                    echo "Updating image registry..."
+
+                    find ./k8s -name "*.yaml" ! -name "namespaces.yaml" \
+                    -exec sed -i "s|REPLACE_WITH_AWS_ECR_URL|${ECR}|g" {} +
+
+                    echo "Updating image tag..."
+
+                    find ./k8s -name "*.yaml" ! -name "namespaces.yaml" \
+                    -exec sed -i "s|:latest|:main-${BUILD_NUMBER}|g" {} +
+
+                    echo "Applying Kubernetes manifests..."
+
+                    kubectl apply -f ./k8s \
+                        -n "${NAMESPACE}" \
+                        --kubeconfig "${KUBECONFIG}"
+
+                    echo "✅ Global manifests applied successfully."
+                else
+                    echo "❌ k8s directory not found."
+                    exit 1
+                fi
+            fi
+        '''
+    }
+}
         stage('Update Service Manifest') {
             steps {
                 sh '''
