@@ -304,40 +304,6 @@ pipeline {
             }
         }
 
-        stage('Update analytics Manifest') {
-            steps {
-                sh '''
-                    set -a
-                    . "${WORKSPACE}/deploy.env"
-                    set +a
-
-                    if [ -d "./analytics-service/k8s" ]; then
-
-                        find ./analytics-service/k8s \
-                        -name "*.yaml" \
-                        -exec sed -i \
-                        "s|image: REPLACE_WITH_AWS_ECR_URL/.*|image: ${ECR}/${MY_SERVICE}:main-${BUILD_NUMBER}|g" {} +
-                    fi
-                '''
-            }
-        }
-
-        stage('Deploy analytics-service') {
-            steps {
-                sh '''
-                    set -a
-                    . "${WORKSPACE}/deploy.env"
-                    set +a
-
-                    export KUBECONFIG="${WORKSPACE}/.kube-config"
-
-                    if [ -d "./analytics-service/k8s" ]; then
-                        kubectl apply -f ./analytics-service/k8s -n ${NAMESPACE} || true
-                    fi
-                '''
-            }
-        }
-
         stage('Verify Deployments') {
             steps {
                 sh '''
@@ -454,13 +420,17 @@ pipeline {
         }
 
         stage('Rollout Status - analytics-Service') {
-            steps {
-                sh '''
-                    export KUBECONFIG="${WORKSPACE}/.kube-config"
+           steps {
+              sh '''
+                 set -a
+                 . "${WORKSPACE}/deploy.env"
+                 set +a
 
-                    kubectl rollout status deployment/analytics-service \
-                    -n ${WORKSPACE} \
-                    --timeout=60s || true
+                 export KUBECONFIG="${WORKSPACE}/.kube-config"
+
+                 kubectl rollout status deployment/analytics-service \
+                 -n "${NAMESPACE}" \
+                 --timeout=60s || true
                 '''
             }
         }
