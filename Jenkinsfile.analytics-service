@@ -178,41 +178,48 @@ pipeline {
             }
         }
 
-        // Prepare variables for later stages
+                // ====================================================================
+        // 1. सबसे पहले वेरिएबल्स तैयार करें ताकि आने वाली सभी स्टेजेस इसे पढ़ सकें
+        // ====================================================================
         stage('Prepare Environment Variables') {
             steps {
                 sh '''
-                    set -e
-                    ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-                    echo "ACCOUNT_ID=${ACCOUNT_ID}" > "${WORKSPACE}/deploy.env"
-                    echo "ECR=${ACCOUNT_ID}.dkr.ecr.ap-south-1.amazonaws.com" >> "${WORKSPACE}/deploy.env"
-
-                    if [ "${ACTUAL_BRANCH}" = "main" ]; then
-                        NAMESPACE="production"
-                    elif [ "${ACTUAL_BRANCH}" = "develop" ]; then
-                        NAMESPACE="dev"
-                    elif [ "${ACTUAL_BRANCH}" = "testing" ]; then
-                        NAMESPACE="testing"
-                    else
-                        echo "Unknown Branch : ${ACTUAL_BRANCH}"
-                        exit 1
-                    fi
-
-                    echo "NAMESPACE=${NAMESPACE}" >> "${WORKSPACE}/deploy.env"
-                    cat "${WORKSPACE}/deploy.env"
+                set -e
+                pwd
+                ls -la
+                ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+                echo "ACCOUNT_ID=${ACCOUNT_ID}" > "${WORKSPACE}/deploy.env"
+                echo "ECR=${ACCOUNT_ID}.dkr.ecr.ap-south-1.amazonaws.com" >> "${WORKSPACE}/deploy.env"
+                
+                if [ "${ACTUAL_BRANCH}" = "main" ]; then
+                    NAMESPACE="production"
+                elif [ "${ACTUAL_BRANCH}" = "develop" ]; then
+                    NAMESPACE="dev"
+                elif [ "${ACTUAL_BRANCH}" = "testing" ]; then
+                    NAMESPACE="testing"
+                else
+                    echo "Unknown Branch : ${ACTUAL_BRANCH}"
+                    exit 1
+                fi
+                echo "NAMESPACE=${NAMESPACE}" >> "${WORKSPACE}/deploy.env"
+                echo "===== deploy.env ====="
+                cat "${WORKSPACE}/deploy.env"
                 '''
             }
         }
 
-        // Create the namespace once deploy.env is available
+        // ====================================================================
+        // 2. अब नेम्सपेस बनाएं (क्योंकि अब ऊपर deploy.env फाइल बन चुकी है)
+        // ====================================================================
         stage('Create Production Namespace') {
             steps {
                 sh '''
-                    set -a
-                    . "${WORKSPACE}/deploy.env"
-                    set +a
-                    export KUBECONFIG="${WORKSPACE}/.kube-config"
-                    kubectl create namespace "${NAMESPACE}" --dry-run=client -o yaml | kubectl apply -f -
+                set -a
+                . "${WORKSPACE}/deploy.env"
+                set +a
+                export KUBECONFIG="${WORKSPACE}/.kube-config"
+                kubectl create namespace "${NAMESPACE}" \
+                    --dry-run=client -o yaml | kubectl apply -f -
                 '''
             }
         }
