@@ -7,10 +7,6 @@ pipeline {
         disableConcurrentBuilds()
     }
 
-    triggers {
-        githubPush()
-    }
-
     environment {
         AWS_DEFAULT_REGION = "ap-south-1"
         MY_SERVICE = "analytics-service"
