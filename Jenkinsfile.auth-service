@@ -9,7 +9,7 @@ pipeline {
 
     environment {
         AWS_DEFAULT_REGION = "ap-south-1"
-        MY_SERVICE = "api-gateway"
+        MY_SERVICE = "auth-service"
 
         // Global-level credentials
         AWS_CREDENTIALS = credentials('aws-credentials-id')
@@ -34,7 +34,7 @@ pipeline {
             }
         }
 
-        stage('Docker Image Build (api-gateway)') {
+        stage('Docker Image Build (auth-service)') {
             steps {
                 script {
                     sh 'docker system prune -f'
@@ -404,7 +404,7 @@ pipeline {
             }
         }
 
-        stage('Rollout Status - api-gateway') {
+        stage('Rollout Status - auth-service') {
             steps {
                 sh '''
                     set -a
