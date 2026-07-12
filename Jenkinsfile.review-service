@@ -7,15 +7,11 @@ pipeline {
         disableConcurrentBuilds()
     }
 
-    triggers {
-        githubPush()
-    }
-
     environment {
         AWS_DEFAULT_REGION = "ap-south-1"
-        MY_SERVICE         = "review-service"
+        MY_SERVICE = "review-service"
 
-        // 🔐 ग्लोबल लेवल क्रेडेंशियल्स
+        // Global-level credentials
         AWS_CREDENTIALS = credentials('aws-credentials-id')
         AWS_ACCESS_KEY_ID = "${env.AWS_CREDENTIALS_USR}"
         AWS_SECRET_ACCESS_KEY = "${env.AWS_CREDENTIALS_PSW}"
@@ -30,33 +26,33 @@ pipeline {
 
         stage('Git Checkout') {
             steps {
-                git branch: 'main', url: 'https://github.com/Praveen230389/Ecommerce-Project.git'
+                git branch: "${env.BRANCH_NAME}",
+                    url: 'https://github.com/Praveen230389/Ecommerce-Project.git'
                 script {
-                    env.ACTUAL_BRANCH = 'main'
+                    env.ACTUAL_BRANCH = env.BRANCH_NAME
                 }
             }
         }
 
-        stage("Docker Image Build (review-service)") {
-           steps {
-              script {
-                 sh 'docker system prune -f'
-                 sh '''
-                   ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-                   LOCAL_ECR_URL="${ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com"
-                   FULL_IMAGE_TAG="${LOCAL_ECR_URL}/${MY_SERVICE}:${ACTUAL_BRANCH}-${BUILD_NUMBER}"
+        stage('Docker Image Build (review-service)') {
+            steps {
+                script {
+                    sh 'docker system prune -f'
+                    sh '''
+                        ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+                        LOCAL_ECR_URL="${ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com"
+                        FULL_IMAGE_TAG="${LOCAL_ECR_URL}/${MY_SERVICE}:${ACTUAL_BRANCH}-${BUILD_NUMBER}"
 
-                   echo "Building image for ${MY_SERVICE}..."
-                   # 🎯 ध्यान दें: यहाँ हार्डकोडेड पाथ हटाकर ${MY_SERVICE} फोल्डर और Dockerfile को टारगेट किया है
-                   docker build -t Ecommerse/${MY_SERVICE} -t ${FULL_IMAGE_TAG} -f ${MY_SERVICE}/Dockerfile ${MY_SERVICE}/
-                  '''
+                        echo "Building image for ${MY_SERVICE}..."
+                        docker build -t Ecommerse/${MY_SERVICE} -t ${FULL_IMAGE_TAG} -f ${MY_SERVICE}/Dockerfile ${MY_SERVICE}/
+                    '''
                 }
             }
         }
 
         stage('AWS ECR Login') {
             steps {
-                echo "Logging into Amazon ECR Registry..."
+                echo 'Logging into Amazon ECR Registry...'
                 sh """
                     ACCOUNT_ID=\$(aws sts get-caller-identity --query Account --output text)
                     aws ecr get-login-password --region ${env.AWS_DEFAULT_REGION} | docker login --username AWS --password-stdin \${ACCOUNT_ID}.dkr.ecr.${env.AWS_DEFAULT_REGION}.amazonaws.com
@@ -65,24 +61,24 @@ pipeline {
         }
 
         stage('Trivy Image Scan') {
-           steps { 
-              script {
-                sh "docker save Ecommerse/${env.MY_SERVICE} -o service.tar"
-                sh "trivy image --input service.tar --scanners vuln --offline-scan > trivyresults.txt || true"
-                sh "rm -f service.tar"
-               }
-           }
+            steps {
+                script {
+                    sh "docker save Ecommerse/${env.MY_SERVICE} -o service.tar"
+                    sh "trivy image --input service.tar --scanners vuln --offline-scan > trivyresults.txt || true"
+                    sh 'rm -f service.tar'
+                }
+            }
         }
 
         stage('Docker Push Image') {
-           steps {
-              sh '''
-              ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-              LOCAL_ECR_URL="${ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com"
+            steps {
+                sh '''
+                    ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+                    LOCAL_ECR_URL="${ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com"
 
-              echo "Pushing ${MY_SERVICE} to ECR..."
-              docker push ${LOCAL_ECR_URL}/${MY_SERVICE}:${ACTUAL_BRANCH}-${BUILD_NUMBER}
-              '''
+                    echo "Pushing ${MY_SERVICE} to ECR..."
+                    docker push ${LOCAL_ECR_URL}/${MY_SERVICE}:${ACTUAL_BRANCH}-${BUILD_NUMBER}
+                '''
             }
         }
 
@@ -178,54 +174,73 @@ pipeline {
             }
         }
 
+                // ====================================================================
+        // 1. सबसे पहले वेरिएबल्स तैयार करें ताकि आने वाली सभी स्टेजेस इसे पढ़ सकें
+        // ====================================================================
+        stage('Prepare Environment Variables') {
+            steps {
+                sh '''
+                set -e
+                pwd
+                ls -la
+                ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+                echo "ACCOUNT_ID=${ACCOUNT_ID}" > "${WORKSPACE}/deploy.env"
+                echo "ECR=${ACCOUNT_ID}.dkr.ecr.ap-south-1.amazonaws.com" >> "${WORKSPACE}/deploy.env"
+                
+                if [ "${ACTUAL_BRANCH}" = "main" ]; then
+                    NAMESPACE="production"
+                elif [ "${ACTUAL_BRANCH}" = "develop" ]; then
+                    NAMESPACE="dev"
+                elif [ "${ACTUAL_BRANCH}" = "testing" ]; then
+                    NAMESPACE="testing"
+                else
+                    echo "Unknown Branch : ${ACTUAL_BRANCH}"
+                    exit 1
+                fi
+                echo "NAMESPACE=${NAMESPACE}" >> "${WORKSPACE}/deploy.env"
+                echo "===== deploy.env ====="
+                cat "${WORKSPACE}/deploy.env"
+                '''
+            }
+        }
+
+        // ====================================================================
+        // 2. अब नेम्सपेस बनाएं (क्योंकि अब ऊपर deploy.env फाइल बन चुकी है)
+        // ====================================================================
         stage('Create Production Namespace') {
             steps {
                 sh '''
-                    export KUBECONFIG="${WORKSPACE}/.kube-config"
-
-                    kubectl create namespace production \
+                set -a
+                . "${WORKSPACE}/deploy.env"
+                set +a
+                export KUBECONFIG="${WORKSPACE}/.kube-config"
+                kubectl create namespace "${NAMESPACE}" \
                     --dry-run=client -o yaml | kubectl apply -f -
                 '''
             }
         }
 
-        stage('Prepare Environment Variables') {
-            steps {
-                sh '''
-                    ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-
-                    echo "ACCOUNT_ID=${ACCOUNT_ID}" > deploy.env
-                    echo "ECR=${ACCOUNT_ID}.dkr.ecr.ap-south-1.amazonaws.com" >> deploy.env
-                    echo "NAMESPACE=production" >> deploy.env
-
-                    cat deploy.env
-                '''
-            }
-        }
-
+        // Apply global core infrastructure after namespace creation
         stage('Update & Apply Global Core Infrastructure') {
             steps {
                 sh '''
-                    source deploy.env
+                    set -e
                     export KUBECONFIG="${WORKSPACE}/.kube-config"
+                    set -a
+                    . "${WORKSPACE}/deploy.env"
+                    set +a
 
-                    # 🎯 कंपनियों का तरीका: पहले चेक करो कि क्या लोड बैलेंसर (Ingress) क्लस्टर में पहले से मौजूद है
-                    if kubectl get ingress -n ${NAMESPACE} --kubeconfig "${KUBECONFIG}" > /dev/null 2>&1; then
-                        echo "🌐 Global Core Infrastructure (ALB Ingress) already exists. Skipping re-apply to prevent downtime."
+                    if kubectl get ingress -n "${NAMESPACE}" --kubeconfig "${KUBECONFIG}" >/dev/null 2>&1; then
+                        echo "Global Infrastructure already exists."
                     else
-                        echo "🚀 Global Infrastructure not found. Initializing Cluster Base..."
-                        
+                        echo "Applying Global Infrastructure..."
                         if [ -d "./k8s" ]; then
-                            # 🎯 FIX: यहाँ हार्डकोडेड 'review-servics, 
-                            # यह कमांड पूरे फोल्डर की सभी YAML फाइल्स में लिखे 'REPLACE_WITH_AWS_ECR_URL' को 
-                            # आपके असली ECR URL से एक बार में डायनामिकली बदल देगी!
-                            find ./k8s -name "*.yaml" ! -name "namespaces.yaml" -exec sed -i "s|REPLACE_WITH_AWS_ECR_URL|${ECR}|g" {} + || true
-                            
-                            # यह कमांड कूबरनेटीस मेनिफेस्ट्स के अंदर लिखे जेनरिक्स को इस स्पेसिफिक बिल्ड नंबर से टैग कर देगी
-                            find ./k8s -name "*.yaml" ! -name "namespaces.yaml" -exec sed -i "s|:latest|:main-${BUILD_NUMBER}|g" {} + || true
-                            
-                            echo "🎯 Applying base manifests to cluster..."
-                            kubectl apply -f ./k8s -n ${NAMESPACE} --kubeconfig "${KUBECONFIG}"
+                            find ./k8s -name "*.yaml" ! -name "namespaces.yaml" -exec sed -i "s|REPLACE_WITH_AWS_ECR_URL|${ECR}|g" {} +
+                            find ./k8s -name "*.yaml" ! -name "namespaces.yaml" -exec sed -i "s|:latest|:${ACTUAL_BRANCH}-${BUILD_NUMBER}|g" {} +
+                            kubectl apply -f ./k8s -n "${NAMESPACE}" --kubeconfig "${KUBECONFIG}"
+                        else
+                            echo "k8s folder not found"
+                            exit 1
                         fi
                     fi
                 '''
@@ -235,10 +250,26 @@ pipeline {
         stage('Update Service Manifest') {
             steps {
                 sh '''
-                    source deploy.env
+                    set -e
+
+                    set -a
+                    . "${WORKSPACE}/deploy.env"
+                    set +a
+
                     if [ -d "./${MY_SERVICE}/k8s" ]; then
-                        # 🎯 अब यह डायनामिकली सीधे review-service की ही इमेज और पाथ सेट करेगा
-                        find ./${MY_SERVICE}/k8s -name "*.yaml" -exec sed -i "s|image: REPLACE_WITH_AWS_ECR_URL/.*|image: ${ECR}/${MY_SERVICE}:main-${BUILD_NUMBER}|g" {} +
+                        echo "Updating ${MY_SERVICE} manifests..."
+
+                        find ./${MY_SERVICE}/k8s -name "*.yaml" \
+                            -exec sed -i "s|\\${NAMESPACE}|${NAMESPACE}|g" {} +
+
+                        find ./${MY_SERVICE}/k8s -name "*.yaml" \
+                            -exec sed -i "s|\\${SERVICE_NAME}|${MY_SERVICE}|g" {} +
+
+                        find ./${MY_SERVICE}/k8s -name "*.yaml" \
+                            -exec sed -i "s|\\${ECR_REGISTRY}|${ECR}|g" {} +
+
+                        find ./${MY_SERVICE}/k8s -name "*.yaml" \
+                            -exec sed -i "s|\\${IMAGE_TAG}|${ACTUAL_BRANCH}-${BUILD_NUMBER}|g" {} +
                     fi
                 '''
             }
@@ -247,7 +278,9 @@ pipeline {
         stage('Deploy Service to EKS') {
             steps {
                 sh '''
-                    source deploy.env
+                    set -a
+                    . "${WORKSPACE}/deploy.env"
+                    set +a
                     export KUBECONFIG="${WORKSPACE}/.kube-config"
                     if [ -d "./${MY_SERVICE}/k8s" ]; then
                         kubectl apply -f ./${MY_SERVICE}/k8s -n ${NAMESPACE}
@@ -256,39 +289,12 @@ pipeline {
             }
         }
 
-        stage('Update review Manifest') {
-            steps {
-                sh '''
-                    source deploy.env
-
-                    if [ -d "./review-service/k8s" ]; then
-
-                        find ./review-service/k8s \
-                        -name "*.yaml" \
-                        -exec sed -i \
-                        "s|image: REPLACE_WITH_AWS_ECR_URL/.*|image: ${ECR}/${TARGET_SERVICE_2}:main-${BUILD_NUMBER}|g" {} +
-                    fi
-                '''
-            }
-        }
-
-        stage('Deploy review-service') {
-            steps {
-                sh '''
-                    source deploy.env
-
-                    export KUBECONFIG="${WORKSPACE}/.kube-config"
-
-                    if [ -d "./review-service/k8s" ]; then
-                        kubectl apply -f ./review-service/k8s -n ${NAMESPACE} || true
-                    fi
-                '''
-            }
-        }
-
         stage('Verify Deployments') {
             steps {
                 sh '''
+                    set -a
+                    . "${WORKSPACE}/deploy.env"
+                    set +a
                     export KUBECONFIG="${WORKSPACE}/.kube-config"
 
                     kubectl get deployment -n ${NAMESPACE}
@@ -299,6 +305,9 @@ pipeline {
         stage('Verify ReplicaSets') {
             steps {
                 sh '''
+                    set -a
+                    . "${WORKSPACE}/deploy.env"
+                    set +a
                     export KUBECONFIG="${WORKSPACE}/.kube-config"
 
                     kubectl get rs -n ${NAMESPACE}
@@ -309,6 +318,9 @@ pipeline {
         stage('Verify Pods') {
             steps {
                 sh '''
+                    set -a
+                    . "${WORKSPACE}/deploy.env"
+                    set +a
                     export KUBECONFIG="${WORKSPACE}/.kube-config"
 
                     kubectl get pods -n ${NAMESPACE} -o wide
@@ -319,11 +331,14 @@ pipeline {
         stage('Describe Pending Pods') {
             steps {
                 sh '''
+                    set -a
+                    . "${WORKSPACE}/deploy.env"
+                    set +a
                     export KUBECONFIG="${WORKSPACE}/.kube-config"
 
                     kubectl get pods -n ${NAMESPACE} \
-                    --field-selector=status.phase=Pending \
-                    -o name | while read pod
+                        --field-selector=status.phase=Pending \
+                        -o name | while read pod
                     do
                         echo "====================================="
                         echo "$pod"
@@ -337,6 +352,9 @@ pipeline {
         stage('Verify Services') {
             steps {
                 sh '''
+                    set -a
+                    . "${WORKSPACE}/deploy.env"
+                    set +a
                     export KUBECONFIG="${WORKSPACE}/.kube-config"
 
                     kubectl get svc -n ${NAMESPACE}
@@ -347,6 +365,9 @@ pipeline {
         stage('Verify Endpoints') {
             steps {
                 sh '''
+                    set -a
+                    . "${WORKSPACE}/deploy.env"
+                    set +a
                     export KUBECONFIG="${WORKSPACE}/.kube-config"
 
                     kubectl get endpoints -n ${NAMESPACE}
@@ -357,6 +378,9 @@ pipeline {
         stage('Verify Ingress') {
             steps {
                 sh '''
+                    set -a
+                    . "${WORKSPACE}/deploy.env"
+                    set +a
                     export KUBECONFIG="${WORKSPACE}/.kube-config"
 
                     kubectl get ingress -n ${NAMESPACE}
@@ -368,23 +392,30 @@ pipeline {
         stage('Verify Events') {
             steps {
                 sh '''
+                    set -a
+                    . "${WORKSPACE}/deploy.env"
+                    set +a
                     export KUBECONFIG="${WORKSPACE}/.kube-config"
 
                     kubectl get events \
-                    -n ${NAMESPACE} \
-                    --sort-by=.metadata.creationTimestamp | tail -100 || true
+                        -n ${NAMESPACE} \
+                        --sort-by=.metadata.creationTimestamp | tail -100 || true
                 '''
             }
         }
 
-        stage('Rollout Status - review-Service') {
+        stage('Rollout Status - review-service') {
             steps {
                 sh '''
+                    set -a
+                    . "${WORKSPACE}/deploy.env"
+                    set +a
+
                     export KUBECONFIG="${WORKSPACE}/.kube-config"
 
-                    kubectl rollout status deployment/review-service \
-                    -n ${WORKSPACE} \
-                    --timeout=60s || true
+                    kubectl rollout status deployment/${MY_SERVICE} \
+                        -n "${NAMESPACE}" \
+                        --timeout=60s || true
                 '''
             }
         }
@@ -392,6 +423,9 @@ pipeline {
         stage('Final Cluster Summary') {
             steps {
                 sh '''
+                    set -a
+                    . "${WORKSPACE}/deploy.env"
+                    set +a
                     export KUBECONFIG="${WORKSPACE}/.kube-config"
 
                     echo "==========================================="
@@ -419,14 +453,14 @@ pipeline {
             }
         }
     }
+
     post {
         always {
             script {
-                echo "Cleaning up local workspace cache..."
-                sh "docker image prune -f || true"
+                echo 'Cleaning up local workspace cache...'
+                sh 'docker image prune -f || true'
                 cleanWs()
             }
         }
     }
-
 }
