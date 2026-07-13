@@ -29,7 +29,7 @@ spec:
         image: ${ECR_REGISTRY}/${SERVICE_NAME}:${IMAGE_TAG}
         imagePullPolicy: Always
         ports:
-        - containerPort: 8080  # हमारी Dockerfile का इंटरनल पोर्ट 8080 था, तो कूबरनेटीस में भी यही रहेगा
+        - containerPort: 3007  # हमारी Dockerfile का इंटरनल पोर्ट 3007 था, तो कूबरनेटीस में भी यही रहेगा
         env:
         - name: S3_BUCKET_NAME
           value: "praveen-ecommerce-bucket-12345"
@@ -61,4 +61,4 @@ spec:
   ports:
   - protocol: TCP
     port: 80        # बाहरी सर्विस पोर्ट
-    targetPort: 8080 # हमारे कंटेनर का पोर्ट
+    targetPort: 3007 # हमारे कंटेनर का पोर्ट
