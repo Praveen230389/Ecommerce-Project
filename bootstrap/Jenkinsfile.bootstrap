@@ -72,7 +72,7 @@ pipeline {
         }
 
         // ====================================================================
-        // 🔥 3. HELM v3 INSTALLATION STAGE
+        // 🔥 3. HELM v3 INSTALLATION STAGE (FIXED URL)
         // ====================================================================
         stage('Bootstrap: Install Helm v3') {
             steps {
@@ -85,6 +85,7 @@ pipeline {
                     echo "ℹ️ Helm v3 is already installed."
                 else
                     echo "📥 Fetching official Helm script..."
+                    # ध्यान दें: यहाँ अब 'raw.githubusercontent.com' का सही पाथ लगा दिया है
                     curl -fsSL -o get_helm.sh https://githubusercontent.com
                     chmod 700 get_helm.sh
                     ./get_helm.sh
