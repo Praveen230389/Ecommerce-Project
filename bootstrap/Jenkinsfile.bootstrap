@@ -2,7 +2,7 @@ pipeline {
     agent any
     
     options {
-        timeout(time: 45, unit: 'MINUTES') // टूल्स इन्स्टॉलेशन के लिए समय बढ़ाकर 45 मिनट किया
+        timeout(time: 45, unit: 'MINUTES') 
         buildDiscarder(logRotator(numToKeepStr: '10'))
         disableConcurrentBuilds()
     }
@@ -10,7 +10,6 @@ pipeline {
     environment {
         AWS_DEFAULT_REGION = "ap-south-1"
         CLUSTER_NAME       = "ecommerce-cluster"
-        // नोट: इनसिक्योर इन्टरपोलेशन वार्निंग से बचने के लिए क्रेडेंशियल आईडी को सीधे बाइंड करेंगे
         AWS_CREDS_ID       = 'aws-credentials-id' 
     }
     
@@ -23,53 +22,130 @@ pipeline {
         }
 
         // ====================================================================
-        // 🔥 न्यू कॉर्पोरेट स्टेज: होस्ट सर्वर पर टूल्स और परमिशन फिक्स करना (Automated Jenkins.sh)
+        // 🔥 1. DOCKER PERMISSIONS STAGE
         // ====================================================================
-        stage('Host Tooling & Permission Bootstrap') {
+        stage('Bootstrap: Docker Group & Permissions') {
             steps {
                 sh '''
-                echo "========================================"
-                echo "⚙️ Bootstrapping Host Tools & Permissions"
-                echo "========================================"
+                echo "========================================================="
+                echo "🐳 Configuring Docker Group & Socket Permissions"
+                echo "========================================================="
                 set -e
-
-                # 1. Docker Socket परमिशन ऑटोमेशन (502/Permission एरर का पक्का इलाज)
-                sudo chmod 666 /var/run/docker.sock || true
+                sudo groupadd docker 2>/dev/null || true
                 sudo usermod -aG docker jenkins || true
+                sudo chmod 666 /var/run/docker.sock || true
+                echo "🎯 VERIFICATION:"
+                ls -l /var/run/docker.sock
+                echo "✅ Docker socket permission verification complete!"
+                '''
+            }
+        }
 
-                # 2. Kubectl इन्स्टॉलेशन चेक
-                if ! command -v kubectl >/dev/null 2>&1; then
-                    echo "📥 Installing kubectl..."
-                    curl -LO "https://k8s.io(curl -L -s https://k8s.io)/bin/linux/amd64/kubectl"
-                    chmod +x kubectl
-                    sudo mv kubectl /usr/local/bin/
+        // ====================================================================
+        // 🔥 2. KUBECTL INSTALLATION STAGE
+        // ====================================================================
+        stage('Bootstrap: Install Kubectl') {
+            steps {
+                sh '''
+                echo "========================================================="
+                echo "☸️ Checking and Installing Kubectl CLI"
+                echo "========================================================="
+                set -e
+                if command -v kubectl >/dev/null 2>&1; then
+                    echo "ℹ️ Kubectl is already installed."
+                else
+                    echo "📥 Downloading stable Kubectl binary..."
+                    curl -LO "https://k8s.io"
+                    chmod +x ./kubectl
+                    sudo mv ./kubectl /usr/local/bin/kubectl
                 fi
-
-                # 3. Helm v3 इन्स्टॉलेशन चेक
-                if ! command -v helm >/dev/null 2>&1; then
-                    echo "📥 Installing Helm v3..."
-                    curl https://githubusercontent.com | bash
+                echo "🎯 VERIFICATION:"
+                if command -v kubectl >/dev/null 2>&1; then
+                    echo "✅ SUCCESS: Kubectl is active!"
+                    kubectl version --client
+                else
+                    echo "❌ FAILURE: Kubectl failed!"
+                    exit 1
                 fi
+                '''
+            }
+        }
 
-                # 4. AWS CLI और जेनकिंस पाथ अलाइनमेंट
-                sudo ln -sf /usr/bin/aws /usr/local/bin/aws || true
-                
-                echo "✅ Host system is fully bootstrapped with correct privileges!"
+        // ====================================================================
+        // 🔥 3. HELM v3 INSTALLATION STAGE
+        // ====================================================================
+        stage('Bootstrap: Install Helm v3') {
+            steps {
+                sh '''
+                echo "========================================================="
+                echo "⛵ Checking and Installing Helm v3"
+                echo "========================================================="
+                set -e
+                if command -v helm >/dev/null 2>&1; then
+                    echo "ℹ️ Helm v3 is already installed."
+                else
+                    echo "📥 Fetching official Helm script..."
+                    curl -fsSL -o get_helm.sh https://githubusercontent.com
+                    chmod 700 get_helm.sh
+                    ./get_helm.sh
+                    rm -f get_helm.sh
+                fi
+                echo "🎯 VERIFICATION:"
+                if command -v helm >/dev/null 2>&1; then
+                    echo "✅ SUCCESS: Helm v3 is active!"
+                    helm version
+                else
+                    echo "❌ FAILURE: Helm failed!"
+                    exit 1
+                fi
+                '''
+            }
+        }
+
+        // ====================================================================
+        // 🔥 4. AWS CLI PATH ALIGNMENT STAGE
+        // ====================================================================
+        stage('Bootstrap: AWS CLI Path Alignment') {
+            steps {
+                sh '''
+                echo "========================================================="
+                echo "☁️ Aligning AWS CLI Symlinks for Jenkins Runtime"
+                echo "========================================================="
+                set -e
+                if [ -f /usr/bin/aws ]; then
+                    sudo ln -sf /usr/bin/aws /usr/local/bin/aws || true
+                elif [ -f /usr/local/bin/aws ]; then
+                    sudo ln -sf /usr/local/bin/aws /usr/bin/aws || true
+                fi
+                echo "🎯 VERIFICATION:"
+                if command -v aws >/dev/null 2>&1; then
+                    echo "✅ SUCCESS: AWS CLI is active!"
+                    aws --version
+                else
+                    echo "❌ FAILURE: AWS CLI unreachable!"
+                    exit 1
+                fi
                 '''
             }
         }
         
         stage('Generate EKS Kubeconfig') {
             steps {
-                // सुरक्षित क्रेडेंशियल हैंडलिंग जो वार्निंग नहीं देगी
                 withCredentials([usernamePassword(credentialsId: "${env.AWS_CREDS_ID}", passwordVariable: 'AWS_SECRET_ACCESS_KEY', usernameVariable: 'AWS_ACCESS_KEY_ID')]) {
                     sh '''
                         export KUBECONFIG="${WORKSPACE}/.kube-config"
-                        echo "🔑 Generating fresh EKS Kubeconfig inside workspace..."
+                        echo "🔑 Generating workspace EKS Kubeconfig..."
                         aws eks update-kubeconfig \
                             --region ${AWS_DEFAULT_REGION} \
                             --name ${CLUSTER_NAME} \
                             --kubeconfig "${KUBECONFIG}"
+                        echo "🎯 VERIFICATION:"
+                        if [ -f "${WORKSPACE}/.kube-config" ]; then
+                            echo "✅ SUCCESS: Kubeconfig file created!"
+                        else
+                            echo "❌ FAILURE: Kubeconfig failed!"
+                            exit 1
+                        fi
                     '''
                 }
             }
@@ -79,7 +155,7 @@ pipeline {
             steps {
                 sh '''
                     export KUBECONFIG="${WORKSPACE}/.kube-config"
-                    echo "🚀 Creating core namespaces (dev, testing, production)..."
+                    echo "🚀 Creating core namespaces..."
                     if [ -f "./k8s/namespaces.yaml" ]; then
                         kubectl apply -f ./k8s/namespaces.yaml --kubeconfig "${KUBECONFIG}"
                     else
@@ -87,37 +163,34 @@ pipeline {
                         kubectl create namespace dev --dry-run=client -o yaml | kubectl apply -f - --kubeconfig "${KUBECONFIG}"
                         kubectl create namespace testing --dry-run=client -o yaml | kubectl apply -f - --kubeconfig "${KUBECONFIG}"
                     fi
+                    echo "🎯 VERIFICATION:"
+                    kubectl get ns --kubeconfig "${KUBECONFIG}"
                 '''
             }
         }
 
-        // ====================================================================
-        // 🔥 न्यू कॉर्पोरेट स्टेज: क्लस्टर के अंदर AWS ALB Controller इंजन डालना
-        // ====================================================================
         stage('Install AWS ALB Controller Engine') {
             steps {
                 withCredentials([usernamePassword(credentialsId: "${env.AWS_CREDS_ID}", passwordVariable: 'AWS_SECRET_ACCESS_KEY', usernameVariable: 'AWS_ACCESS_KEY_ID')]) {
                     sh '''
                     export KUBECONFIG="${WORKSPACE}/.kube-config"
-                    echo "📦 Refreshing Helm Repositories for AWS Charts..."
-                    
-                    helm repo add eks https://github.io
+                    echo "📦 Syncing AWS EKS Helm Repository..."
+                    helm repo add eks https://github.io --kubeconfig "${KUBECONFIG}"
                     helm repo update --kubeconfig "${KUBECONFIG}"
-
-                    echo "🐳 Managing AWS Load Balancer Controller Installation..."
+                    echo "🐳 Managing AWS Load Balancer Controller..."
                     if ! helm list -n kube-system --kubeconfig "${KUBECONFIG}" | grep -q "aws-load-balancer-controller"; then
-                        echo "🚀 Running fresh installation of ALB Controller..."
                         helm upgrade --install aws-load-balancer-controller eks/aws-load-balancer-controller \
                             -n kube-system \
                             --set clusterName=${CLUSTER_NAME} \
                             --kubeconfig "${KUBECONFIG}"
                     else
-                        echo "✅ AWS Load Balancer Controller already running! Ensuring it is updated..."
                         helm upgrade aws-load-balancer-controller eks/aws-load-balancer-controller \
                             -n kube-system \
                             --set clusterName=${CLUSTER_NAME} \
                             --kubeconfig "${KUBECONFIG}"
                     fi
+                    echo "🎯 VERIFICATION:"
+                    helm list -n kube-system --kubeconfig "${KUBECONFIG}"
                     '''
                 }
             }
@@ -127,13 +200,12 @@ pipeline {
             steps {
                 sh '''
                     export KUBECONFIG="${WORKSPACE}/.kube-config"
-                    echo "🌐 Deploying Global Application Load Balancer Manifests..."
-                    
+                    echo "🌐 Deploying Global ALB Manifests..."
                     if [ -f "./k8s/ingress.yaml" ]; then
                         kubectl apply -f ./k8s/ingress.yaml -n production --kubeconfig "${KUBECONFIG}"
-                        echo "✅ Core ALB Ingress deployed successfully!"
+                        echo "✅ Core ALB Ingress applied!"
                     else
-                        echo "⚠️ Warning: ingress.yaml not found in root k8s/ folder."
+                        echo "⚠️ Warning: ingress.yaml not found."
                     fi
                 '''
             }
@@ -143,19 +215,17 @@ pipeline {
             steps {
                 sh '''
                     export KUBECONFIG="${WORKSPACE}/.kube-config"
-                    echo "========================================"
+                    echo "========================================================="
                     echo "📊 Core Platform Bootstrap Summary"
-                    echo "========================================"
-                    
-                    echo "-> Active Namespaces:"
+                    echo "========================================================="
                     kubectl get ns --kubeconfig "${KUBECONFIG}"
-                    
                     echo -e "\n-> ALB Controller Pods Status:"
                     kubectl get pods -n kube-system -l app.kubernetes.io/name=aws-load-balancer-controller --kubeconfig "${KUBECONFIG}"
-                    
-                    echo -e "\n-> Live Network Routing Rules (Ingress URL):"
+                    echo -e "\n-> Live Network Routing Rules:"
                     kubectl get ingress -A --kubeconfig "${KUBECONFIG}"
-                    echo "========================================"
+                    echo "========================================================="
+                    echo "✅ Bootstrap verification complete!"
+                    echo "========================================================="
                 '''
             }
         }
