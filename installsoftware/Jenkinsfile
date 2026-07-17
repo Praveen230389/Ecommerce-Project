@@ -218,25 +218,13 @@ pipeline {
 
                 sudo apt update
 
-                chmod 700 get_helm.sh
-
                 sudo chmod 666 /var/run/docker.sock
 
-                sudo chown -R jenkins:jenkins /var/jenkins_home/.kube
-
-                sudo groupadd docker
+                sudo groupadd -f docker
 
                 sudo usermod -aG docker ubuntu
 
                 sudo usermod -aG docker jenkins
-
-                sudo ln -sf /usr/local/bin/aws /usr/bin/aws
-
-                sudo ln -sf /usr/bin/aws /usr/local/bin/aws
-
-                sudo mkdir -p /var/lib/jenkins/.kube
-
-                sudo cp ~/.kube/config /var/lib/jenkins/.kube/config
 
                 sudo ln -sf /usr/local/bin/aws /usr/bin/aws || true
 
