@@ -30,28 +30,6 @@ pipeline {
             }
         }
 
-        stage('Jenkins Kubeconfig') {
-            steps {
-                sh '''
-                echo "========================================"
-                echo "Configuring Jenkins kubeconfig..."
-                echo "========================================"
-
-                sudo mkdir -p /var/lib/jenkins/.kube
-
-                sudo cp ~/.kube/config /var/lib/jenkins/.kube/config
-
-                sudo chown -R jenkins:jenkins /var/lib/jenkins/.kube
-
-                echo "Verifying kubeconfig..."
-
-                sudo ls -l /var/lib/jenkins/.kube
-
-                echo "Jenkins kubeconfig configured successfully"
-                '''
-            }
-        }
-
         stage('AWS Load Balancer Controller Install') {
             steps {
                 sh '''
