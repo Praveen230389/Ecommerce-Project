@@ -75,43 +75,46 @@ pipeline {
         }
 
         stage('AWS CLI Install') {
-            steps {
-                sh '''
-                echo "========================================"
-                echo "Installing AWS CLI..."
-                echo "========================================"
+    steps {
+        sh '''
+        set -e
 
-                sudo apt update
-                sudo apt install -y unzip
+        echo "========================================"
+        echo "Installing / Verifying AWS CLI v2"
+        echo "========================================"
 
-                if command -v aws >/dev/null 2>&1; then
-                    echo "========================================"
-                    echo "AWS CLI is already installed."
-                    echo "Version:"
-                    aws --version
-                    echo "Skipping installation..."
-                    echo "========================================"
-                else
-                    echo "Downloading AWS CLI..."
+        sudo apt update
+        sudo apt install -y unzip curl
 
-                    curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+        # Remove broken symlinks if they exist
+        sudo rm -f /usr/bin/aws
+        sudo rm -f /usr/local/bin/aws
 
-                    unzip -o awscliv2.zip
+        # Download AWS CLI only if not already extracted
+        if [ ! -d aws ]; then
+            curl -sSL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o awscliv2.zip
+            unzip -oq awscliv2.zip
+        fi
 
-                    sudo ./aws/install
+        # Install or update AWS CLI
+        sudo ./aws/install --update
 
-                    echo "Verifying AWS CLI..."
+        # Recreate correct symlinks
+        sudo ln -sf /usr/local/aws-cli/v2/current/bin/aws /usr/local/bin/aws
+        sudo ln -sf /usr/local/bin/aws /usr/bin/aws
 
-                    aws --version
+        echo "========================================"
+        echo "Verifying AWS CLI"
+        echo "========================================"
 
-                    echo "========================================"
-                    echo "AWS CLI Installed Successfully"
-                    echo "========================================"
-                fi
-                '''
-            }
-        }
+        aws --version
 
+        echo "========================================"
+        echo "AWS CLI Ready"
+        echo "========================================"
+        '''
+    }
+}
         stage('Kubectl Install') {
             steps {
                 sh '''
