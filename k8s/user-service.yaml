@@ -27,7 +27,7 @@ spec:
         - containerPort: 8080  # हमारी प्रोडक्शन डॉकरफाइल का स्टैंडर्ड पोर्ट
         env:
         - name: DB_HOST
-          value: "ecommerce-db.c3sm44k68nte.ap-south-1.rds.amazonaws.com"
+          value: "ecommerce-db.czqwkqwuand4.ap-south-1.rds.amazonaws.com"
         resources:
           limits:
             cpu: "200m"
