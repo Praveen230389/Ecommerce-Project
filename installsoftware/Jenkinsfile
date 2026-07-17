@@ -112,6 +112,12 @@ pipeline {
         echo "========================================"
         echo "AWS CLI Ready"
         echo "========================================"
+
+        which aws
+
+        readlink -f $(which aws)
+
+        aws --version
         '''
     }
 }
@@ -124,11 +130,13 @@ pipeline {
 
                 sudo apt update
 
-               sudo snap install kubectl --classic
+                sudo snap install kubectl --classic
 
                 echo "Verifying kubectl..."
                 kubectl version --client
                 echo "kubectl Installed Successfully"
+
+                which kubectl
                 '''
             }
         }
@@ -229,6 +237,18 @@ pipeline {
                 sudo ln -sf /usr/local/bin/aws /usr/bin/aws || true
 
                 echo "AWS CLI Installed Successfully"
+
+                id jenkins
+
+                groups jenkins
+
+                docker --version
+
+                docker info
+
+                aws sts get-caller-identity
+
+                aws eks list-clusters
                 '''
             }
         }
