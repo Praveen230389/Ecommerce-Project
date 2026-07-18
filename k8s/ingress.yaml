@@ -7,7 +7,6 @@ metadata:
     kubernetes.io/ingress.class: alb
     alb.ingress.kubernetes.io/scheme: internet-facing
     alb.ingress.kubernetes.io/target-type: ip
-    # 👇 FIXED: हमने HTTPS 443 और सर्टिफिकेट हटा दिया है, अब यह सिर्फ सिंपल HTTP पर खुलेगा
     alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}]'
 spec:
   rules:
