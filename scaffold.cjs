@@ -512,8 +512,14 @@ CMD ["npm", "start"]`;
     fs.writeFileSync(path.join(svc.name, 'Jenkinsfile'), jenkinsContent);
 
     // K8s specific to service
-    fs.writeFileSync(path.join(svc.name, 'k8s', 'deployment.yaml'), 'apiVersion: apps/v1\\nkind: Deployment\\nmetadata:\\n  name: ' + svc.name + '\\nspec:\\n  replicas: 2\\n  selector:\\n    matchLabels:\\n      app: ' + svc.name + '\\n  template:\\n    metadata:\\n      labels:\\n        app: ' + svc.name + '\\n    spec:\\n      containers:\\n      - name: ' + svc.name + '\\n        image: myregistry/' + svc.name + ':latest\\n        ports:\\n        - containerPort: ' + svc.port);
-    fs.writeFileSync(path.join(svc.name, 'k8s', 'service.yaml'), 'apiVersion: v1\\nkind: Service\\nmetadata:\\n  name: ' + svc.name + '\\nspec:\\n  type: ClusterIP\\n  selector:\\n    app: ' + svc.name + '\\n  ports:\\n    - protocol: TCP\\n      port: ' + svc.port + '\\n      targetPort: ' + svc.port);
+     // 🎯 scaffold.cjs के अंत में (Page 40) इन दोनों लाइन्स को ऐसे अपडेट करें:
+
+ // 1. प्रत्येक माइक्रोसर्विस का containerPort उसके कोड के असली पोर्ट (जैसे 3001, 3015) से मैच होना चाहिए
+ fs.writeFileSync(path.join(svc.name, 'k8s', 'deployment.yaml'), 'apiVersion: apps/v1\nkind: Deployment\nmetadata:\n name: ' + svc.name + '\n namespace: production\nspec:\n replicas: 1\n selector:\n matchLabels:\n app: ' + svc.name + '\n template:\n metadata:\n labels:\n app: ' + svc.name + '\n spec:\n containers:\n - name: ' + svc.name + '\n image: REPLACE_WITH_AWS_ECR_URL/' + svc.name + ':latest\n ports:\n - containerPort: ' + svc.port);
+
+ // 2. सर्विस का port हमेशा 80 रहेगा (ताकि गेटवे सीधे नाम:80 से ढूंढ सके) और targetPort कंटेनर के असली पोर्ट पर ट्रैफिक भेजेगा
+ fs.writeFileSync(path.join(svc.name, 'k8s', 'service.yaml'), 'apiVersion: v1\nkind: Service\nmetadata:\n name: ' + svc.name + '\n namespace: production\nspec:\n type: ClusterIP\n selector:\n app: ' + svc.name + '\n ports:\n - protocol: TCP\n port: 80\n targetPort: ' + svc.port);
+
 });
 
 // Removed child_process Git Init
