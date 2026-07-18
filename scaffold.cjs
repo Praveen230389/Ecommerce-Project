@@ -44,24 +44,24 @@ app.use(cors());
 // Serve the frontend SPA
 app.use(express.static(path.join(__dirname, '../public')));
 
-// Proxies
 const services = {
-    'auth': 'http://localhost:3001',
-    'users': 'http://localhost:3002',
-    'products': 'http://localhost:3003',
-    'cart': 'http://localhost:3004',
-    'orders': 'http://localhost:3005',
-    'payment': 'http://localhost:3006',
-    'inventory': 'http://localhost:3007',
-    'notify': 'http://localhost:3008',
-    'reviews': 'http://localhost:3009',
-    'wishlist': 'http://localhost:3010',
-    'search': 'http://localhost:3011',
-    'shipping': 'http://localhost:3012',
-    'recommendation': 'http://localhost:3013',
-    'discount': 'http://localhost:3014',
-    'analytics': 'http://localhost:3015',
+ 'auth': 'http://auth-service:80',
+ 'users': 'http://user-service:80',
+ 'products': 'http://product-service:80',
+ 'cart': 'http://cart-service:80',
+ 'orders': 'http://order-service:80',
+ 'payment': 'http://payment-service:80',
+ 'inventory': 'http://inventory-service:80',
+ 'notify': 'http://notification-service:80',
+ 'reviews': 'http://review-service:80',
+ 'wishlist': 'http://wishlist-service:80',
+ 'search': 'http://search-service:80',
+ 'shipping': 'http://shipping-service:80',
+ 'recommendation': 'http://recommendation-service:80',
+ 'discount': 'http://discount-service:80',
+ 'analytics': 'http://analytics-service:80',
 };
+
 
 Object.entries(services).forEach(([name, target]) => {
     app.use('/api/' + name, createProxyMiddleware({
