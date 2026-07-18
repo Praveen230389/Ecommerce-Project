@@ -27,21 +27,20 @@ pipeline {
         stage('Java Install') {
             steps {
                 sh '''
+                    sudo apt update && sudo apt upgrade -y
 
-                sudo apt update && sudo apt upgrade -y
+                    set -e
+                    echo "========================================"
+                    echo "Installing Java..."
+                    echo "========================================"
 
-                set -e
-                echo "========================================"
-                echo "Installing Java..."
-                echo "========================================"
+                    sudo apt update
+                    sudo apt install -y fontconfig openjdk-21-jre
 
-                sudo apt update
-                sudo apt install -y fontconfig openjdk-21-jre
-
-                echo "Verifying Java..."
-                java -version
-                command -v java
-                echo "Java Installed Successfully"
+                    echo "Verifying Java..."
+                    java -version
+                    command -v java
+                    echo "Java Installed Successfully"
                 '''
             }
         }
@@ -49,94 +48,95 @@ pipeline {
         stage('Docker Install') {
             steps {
                 sh '''
-                echo "========================================"
-                echo "Installing Docker..."
-                echo "========================================"
+                    echo "========================================"
+                    echo "Installing Docker..."
+                    echo "========================================"
 
-                sudo apt update
-                sudo apt install -y ca-certificates curl gnupg lsb-release
-                sudo mkdir -p /etc/apt/keyrings
-                sudo rm -f /etc/apt/keyrings/docker.gpg
-                curl -fsSL https://download.docker.com/linux/ubuntu/gpg | \
-                sudo gpg --batch --yes --dearmor -o /etc/apt/keyrings/docker.gpg
+                    sudo apt update
+                    sudo apt install -y ca-certificates curl gnupg lsb-release
+                    sudo mkdir -p /etc/apt/keyrings
+                    sudo rm -f /etc/apt/keyrings/docker.gpg
+                    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | \
+                        sudo gpg --batch --yes --dearmor -o /etc/apt/keyrings/docker.gpg
 
-                echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo $VERSION_CODENAME) stable" \
-                | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+                    echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo $VERSION_CODENAME) stable" \
+                        | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
 
-                sudo apt update
-                sudo apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+                    sudo apt update
+                    sudo apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 
-                echo "Verifying Docker..."
-                docker --version
-                docker compose version
-                echo "Docker Installed Successfully"
+                    echo "Verifying Docker..."
+                    docker --version
+                    docker compose version
+                    echo "Docker Installed Successfully"
                 '''
             }
         }
 
         stage('AWS CLI Install') {
-    steps {
-        sh '''
-        set -e
+            steps {
+                sh '''
+                    set -e
 
-        echo "========================================"
-        echo "Installing / Verifying AWS CLI v2"
-        echo "========================================"
+                    echo "========================================"
+                    echo "Installing / Verifying AWS CLI v2"
+                    echo "========================================"
 
-        sudo apt update
-        sudo apt install -y unzip curl
+                    sudo apt update
+                    sudo apt install -y unzip curl
 
-        # Remove broken symlinks if they exist
-        sudo rm -f /usr/bin/aws
-        sudo rm -f /usr/local/bin/aws
+                    # Remove broken symlinks if they exist
+                    sudo rm -f /usr/bin/aws
+                    sudo rm -f /usr/local/bin/aws
 
-        # Download AWS CLI only if not already extracted
-        if [ ! -d aws ]; then
-            curl -sSL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o awscliv2.zip
-            unzip -oq awscliv2.zip
-        fi
+                    # Download AWS CLI only if not already extracted
+                    if [ ! -d aws ]; then
+                        curl -sSL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o awscliv2.zip
+                        unzip -oq awscliv2.zip
+                    fi
 
-        # Install or update AWS CLI
-        sudo ./aws/install --update
+                    # Install or update AWS CLI
+                    sudo ./aws/install --update
 
-        # Recreate correct symlinks
-        sudo ln -sf /usr/local/aws-cli/v2/current/bin/aws /usr/local/bin/aws
-        sudo ln -sf /usr/local/bin/aws /usr/bin/aws
+                    # Recreate correct symlinks
+                    sudo ln -sf /usr/local/aws-cli/v2/current/bin/aws /usr/local/bin/aws
+                    sudo ln -sf /usr/local/bin/aws /usr/bin/aws
 
-        echo "========================================"
-        echo "Verifying AWS CLI"
-        echo "========================================"
+                    echo "========================================"
+                    echo "Verifying AWS CLI"
+                    echo "========================================"
 
-        aws --version
+                    aws --version
 
-        echo "========================================"
-        echo "AWS CLI Ready"
-        echo "========================================"
+                    echo "========================================"
+                    echo "AWS CLI Ready"
+                    echo "========================================"
 
-        which aws
+                    which aws
 
-        readlink -f $(which aws)
+                    readlink -f $(which aws)
 
-        aws --version
-        '''
-    }
-}
+                    aws --version
+                '''
+            }
+        }
+
         stage('Kubectl Install') {
             steps {
                 sh '''
-                echo "========================================"
-                echo "Installing kubectl..."
-                echo "========================================"
+                    echo "========================================"
+                    echo "Installing kubectl..."
+                    echo "========================================"
 
-                sudo apt update
+                    sudo apt update
 
-                sudo snap install kubectl --classic
+                    sudo snap install kubectl --classic
 
-                echo "Verifying kubectl..."
-                kubectl version --client
-                echo "kubectl Installed Successfully"
+                    echo "Verifying kubectl..."
+                    kubectl version --client
+                    echo "kubectl Installed Successfully"
 
-                which kubectl
+                    which kubectl
                 '''
             }
         }
@@ -144,11 +144,11 @@ pipeline {
         stage('Helm Install') {
             steps {
                 sh '''
-                sudo apt update
-                curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
-                chmod 700 get_helm.sh
-                ./get_helm.sh
-                echo "Helm Installed Successfully"
+                    sudo apt update
+                    curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
+                    chmod 700 get_helm.sh
+                    ./get_helm.sh
+                    echo "Helm Installed Successfully"
                 '''
             }
         }
@@ -156,10 +156,10 @@ pipeline {
         stage('Add Helm repo') {
             steps {
                 sh '''
-                sudo apt update
-                helm repo add eks https://aws.github.io/eks-charts
-                helm repo update
-                echo "Helm Repo Added Successfully"
+                    sudo apt update
+                    helm repo add eks https://aws.github.io/eks-charts
+                    helm repo update
+                    echo "Helm Repo Added Successfully"
                 '''
             }
         }
@@ -167,15 +167,15 @@ pipeline {
         stage('Terraform Install') {
             steps {
                 sh '''
-                echo "========================================"
-                echo "Installing Terraform..."
-                echo "========================================"
+                    echo "========================================"
+                    echo "Installing Terraform..."
+                    echo "========================================"
 
-                sudo apt update
-                sudo apt install -y wget unzip && wget https://releases.hashicorp.com/terraform/1.8.0/terraform_1.8.0_linux_amd64.zip && unzip terraform_1.8.0_linux_amd64.zip && sudo mv terraform /usr/local/bin/ && terraform version
-                echo "Verifying Terraform..."
-                terraform version
-                echo "Terraform Installed Successfully"
+                    sudo apt update
+                    sudo apt install -y wget unzip && wget https://releases.hashicorp.com/terraform/1.8.0/terraform_1.8.0_linux_amd64.zip && unzip terraform_1.8.0_linux_amd64.zip && sudo mv terraform /usr/local/bin/ && terraform version
+                    echo "Verifying Terraform..."
+                    terraform version
+                    echo "Terraform Installed Successfully"
                 '''
             }
         }
@@ -183,20 +183,20 @@ pipeline {
         stage('Trivy Install') {
             steps {
                 sh '''
-                echo "========================================"
-                echo "Installing Trivy..."
-                echo "========================================"
+                    echo "========================================"
+                    echo "Installing Trivy..."
+                    echo "========================================"
 
-                sudo apt update
-                sudo apt install -y wget gnupg lsb-release
-                wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key \
-                | gpg --dearmor \
-                | sudo tee /usr/share/keyrings/trivy.gpg > /dev/null
-                echo "deb [signed-by=/usr/share/keyrings/trivy.gpg] https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -cs) main" \
-                | sudo tee /etc/apt/sources.list.d/trivy.list
-                sudo apt update
-                sudo apt install -y trivy
-                echo "Trivy Installed Successfully"
+                    sudo apt update
+                    sudo apt install -y wget gnupg lsb-release
+                    wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key \
+                        | gpg --dearmor \
+                        | sudo tee /usr/share/keyrings/trivy.gpg > /dev/null
+                    echo "deb [signed-by=/usr/share/keyrings/trivy.gpg] https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -cs) main" \
+                        | sudo tee /etc/apt/sources.list.d/trivy.list
+                    sudo apt update
+                    sudo apt install -y trivy
+                    echo "Trivy Installed Successfully"
                 '''
             }
         }
@@ -204,15 +204,15 @@ pipeline {
         stage('Ansible Install') {
             steps {
                 sh '''
-                echo "========================================"
-                echo "Installing Ansible..."
-                echo "========================================"
+                    echo "========================================"
+                    echo "Installing Ansible..."
+                    echo "========================================"
 
-                sudo apt update
-                sudo apt install -y software-properties-common
-                sudo add-apt-repository --yes --update ppa:ansible/ansible
-                sudo apt install -y ansible
-                echo "Ansible Installed Successfully"
+                    sudo apt update
+                    sudo apt install -y software-properties-common
+                    sudo add-apt-repository --yes --update ppa:ansible/ansible
+                    sudo apt install -y ansible
+                    echo "Ansible Installed Successfully"
                 '''
             }
         }
@@ -220,38 +220,37 @@ pipeline {
         stage('Docker Commands') {
             steps {
                 sh '''
-                echo "========================================"
-                echo "Giving Docker Commands..."
-                echo "========================================"
+                    echo "========================================"
+                    echo "Giving Docker Commands..."
+                    echo "========================================"
 
-                sudo apt update
+                    sudo apt update
 
-                sudo chmod 666 /var/run/docker.sock
+                    sudo chmod 666 /var/run/docker.sock
 
-                sudo groupadd -f docker
+                    sudo groupadd -f docker
 
-                sudo usermod -aG docker ubuntu
+                    sudo usermod -aG docker ubuntu
 
-                sudo usermod -aG docker jenkins
+                    sudo usermod -aG docker jenkins
 
-                sudo ln -sf /usr/local/bin/aws /usr/bin/aws || true
+                    sudo ln -sf /usr/local/bin/aws /usr/bin/aws || true
 
-                echo "AWS CLI Installed Successfully"
+                    echo "AWS CLI Installed Successfully"
 
-                id jenkins
+                    id jenkins
 
-                groups jenkins
+                    groups jenkins
 
-                docker --version
+                    docker --version
 
-                docker info
+                    docker info
 
-                aws sts get-caller-identity
+                    aws sts get-caller-identity
 
-                aws eks list-clusters
+                    aws eks list-clusters
                 '''
             }
         }
     }
 }
-
