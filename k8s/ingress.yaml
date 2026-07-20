@@ -28,7 +28,7 @@ spec:
           service:
             name: analytics-service
             port:
-              number: 3015
+              number: 80
 
       # 3. AUTH SERVICE PATH
       - path: /api/auth
