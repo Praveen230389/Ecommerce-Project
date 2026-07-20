@@ -37,6 +37,8 @@ pipeline {
                     sudo apt update
                     sudo apt install -y fontconfig openjdk-21-jre
 
+                    sudo apt-get install -y nodejs
+
                     echo "Verifying Java..."
                     java -version
                     command -v java
