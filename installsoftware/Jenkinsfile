@@ -215,52 +215,47 @@ pipeline {
         }
 
         stage('Docker Commands') {
-            steps {
-                withCredentials([
+           steps {
+              withCredentials([
+                  usernamePassword(
+                      credentialsId: 'aws-credentials-id',
+                      usernameVariable: 'AWS_ACCESS_KEY_ID',
+                      passwordVariable: 'AWS_SECRET_ACCESS_KEY'
+                  )
+              ]) {
+                  sh '''
+                      echo "========================================"
+                      echo "Giving Docker Commands..."
+                      echo "========================================"
 
-usernamePassword(
+                      sudo apt update
 
-credentialsId:'aws-credentials-id',
+                      sudo chmod 666 /var/run/docker.sock
 
-usernameVariable:'AWS_ACCESS_KEY_ID',
+                      sudo groupadd -f docker
 
-passwordVariable:'AWS_SECRET_ACCESS_KEY'
+                      sudo usermod -aG docker ubuntu
 
-)
+                      sudo usermod -aG docker jenkins
 
-]){
-                sh '''
-                    echo "========================================"
-                    echo "Giving Docker Commands..."
-                    echo "========================================"
+                      sudo ln -sf /usr/local/bin/aws /usr/bin/aws || true
 
-                    sudo apt update
+                      echo "AWS CLI Installed Successfully"
 
-                    sudo chmod 666 /var/run/docker.sock
+                      id jenkins
 
-                    sudo groupadd -f docker
+                      groups jenkins
 
-                    sudo usermod -aG docker ubuntu
+                      docker --version
 
-                    sudo usermod -aG docker jenkins
+                      docker info
 
-                    sudo ln -sf /usr/local/bin/aws /usr/bin/aws || true
+                      aws sts get-caller-identity
 
-                    echo "AWS CLI Installed Successfully"
-
-                    id jenkins
-
-                    groups jenkins
-
-                    docker --version
-
-                    docker info
-
-                    aws sts get-caller-identity
-
-                    aws eks list-clusters
-                '''
-            }
-        }
+                      aws eks list-clusters
+                     '''
+                  }
+             }
+         }
     }
 }
