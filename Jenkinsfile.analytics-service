@@ -10,11 +10,6 @@ pipeline {
     environment {
         AWS_DEFAULT_REGION = "ap-south-1"
         MY_SERVICE = "analytics-service"
-
-        // Global-level credentials
-        AWS_CREDENTIALS = credentials('aws-credentials-id')
-        AWS_ACCESS_KEY_ID = "${env.AWS_CREDENTIALS_USR}"
-        AWS_SECRET_ACCESS_KEY = "${env.AWS_CREDENTIALS_PSW}"
     }
 
     stages {
@@ -35,30 +30,57 @@ pipeline {
         }
 
         stage('Docker Image Build (analytics-service)') {
-            steps {
-                script {
-                    sh 'docker system prune -f'
-                    sh '''
-                        ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-                        LOCAL_ECR_URL="${ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com"
-                        FULL_IMAGE_TAG="${LOCAL_ECR_URL}/${MY_SERVICE}:${ACTUAL_BRANCH}-${BUILD_NUMBER}"
+    steps {
+        withCredentials([
+            usernamePassword(
+                credentialsId: 'aws-credentials-id',
+                usernameVariable: 'AWS_ACCESS_KEY_ID',
+                passwordVariable: 'AWS_SECRET_ACCESS_KEY'
+            )
+        ]) {
+            script {
+                sh 'docker system prune -f'
+                sh '''
+                    ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+                    LOCAL_ECR_URL="${ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com"
+                    FULL_IMAGE_TAG="${LOCAL_ECR_URL}/${MY_SERVICE}:${ACTUAL_BRANCH}-${BUILD_NUMBER}"
 
-                        echo "Building image for ${MY_SERVICE}..."
-                        docker build -t Ecommerse/${MY_SERVICE} -t ${FULL_IMAGE_TAG} -f ${MY_SERVICE}/Dockerfile ${MY_SERVICE}/
-                    '''
-                }
+                    echo "Building image for ${MY_SERVICE}..."
+                    docker build -t Ecommerse/${MY_SERVICE} \
+                        -t ${FULL_IMAGE_TAG} \
+                        -f ${MY_SERVICE}/Dockerfile \
+                        ${MY_SERVICE}/
+                '''
             }
         }
+    }
+}
 
         stage('AWS ECR Login') {
-            steps {
-                echo 'Logging into Amazon ECR Registry...'
-                sh """
-                    ACCOUNT_ID=\$(aws sts get-caller-identity --query Account --output text)
-                    aws ecr get-login-password --region ${env.AWS_DEFAULT_REGION} | docker login --username AWS --password-stdin \${ACCOUNT_ID}.dkr.ecr.${env.AWS_DEFAULT_REGION}.amazonaws.com
-                """
-            }
+    steps {
+        withCredentials([
+            usernamePassword(
+                credentialsId: 'aws-credentials-id',
+                usernameVariable: 'AWS_ACCESS_KEY_ID',
+                passwordVariable: 'AWS_SECRET_ACCESS_KEY'
+            )
+        ]) {
+
+            echo 'Logging into Amazon ECR Registry...'
+
+            sh """
+                ACCOUNT_ID=\$(aws sts get-caller-identity --query Account --output text)
+
+                aws ecr get-login-password \
+                --region ${env.AWS_DEFAULT_REGION} \
+                | docker login \
+                  --username AWS \
+                  --password-stdin \
+                  \${ACCOUNT_ID}.dkr.ecr.${env.AWS_DEFAULT_REGION}.amazonaws.com
+            """
         }
+    }
+}
 
         stage('Trivy Image Scan') {
             steps {
@@ -71,65 +93,70 @@ pipeline {
         }
 
         stage('Docker Push Image') {
-            steps {
-                sh '''
-                    ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-                    LOCAL_ECR_URL="${ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com"
+    steps {
+        withCredentials([
+            usernamePassword(
+                credentialsId: 'aws-credentials-id',
+                usernameVariable: 'AWS_ACCESS_KEY_ID',
+                passwordVariable: 'AWS_SECRET_ACCESS_KEY'
+            )
+        ]) {
 
-                    echo "Pushing ${MY_SERVICE} to ECR..."
-                    docker push ${LOCAL_ECR_URL}/${MY_SERVICE}:${ACTUAL_BRANCH}-${BUILD_NUMBER}
-                '''
-            }
+            sh '''
+                ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+
+                LOCAL_ECR_URL="${ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com"
+
+                echo "Pushing ${MY_SERVICE} to ECR..."
+
+                docker push ${LOCAL_ECR_URL}/${MY_SERVICE}:${ACTUAL_BRANCH}-${BUILD_NUMBER}
+            '''
         }
+    }
+}
 
         stage('Load AWS Credentials') {
-            steps {
-                withCredentials([
-                    usernamePassword(
-                        credentialsId: 'aws-credentials-id',
-                        usernameVariable: 'AWS_ACCESS_KEY_ID',
-                        passwordVariable: 'AWS_SECRET_ACCESS_KEY'
-                    )
-                ]) {
-                    sh '''
-                        echo "=============================================="
-                        echo "Loading AWS Credentials"
-                        echo "=============================================="
+    steps {
+        withCredentials([
+            usernamePassword(
+                credentialsId: 'aws-credentials-id',
+                usernameVariable: 'AWS_ACCESS_KEY_ID',
+                passwordVariable: 'AWS_SECRET_ACCESS_KEY'
+            )
+        ]) {
 
-                        export AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID}"
-                        export AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY}"
-                        export AWS_DEFAULT_REGION="ap-south-1"
+            sh '''
+                echo "=============================================="
+                echo "Loading AWS Credentials"
+                echo "=============================================="
 
-                        aws sts get-caller-identity
-                    '''
-                }
-            }
+                aws sts get-caller-identity
+            '''
         }
+    }
+}
 
         stage('Generate Kubeconfig') {
-            steps {
-                withCredentials([
-                    usernamePassword(
-                        credentialsId: 'aws-credentials-id',
-                        usernameVariable: 'AWS_ACCESS_KEY_ID',
-                        passwordVariable: 'AWS_SECRET_ACCESS_KEY'
-                    )
-                ]) {
-                    sh '''
-                        export AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID}"
-                        export AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY}"
-                        export AWS_DEFAULT_REGION="ap-south-1"
+    steps {
+        withCredentials([
+            usernamePassword(
+                credentialsId: 'aws-credentials-id',
+                usernameVariable: 'AWS_ACCESS_KEY_ID',
+                passwordVariable: 'AWS_SECRET_ACCESS_KEY'
+            )
+        ]) {
 
-                        export KUBECONFIG="${WORKSPACE}/.kube-config"
+            sh '''
+                export KUBECONFIG="${WORKSPACE}/.kube-config"
 
-                        aws eks update-kubeconfig \
-                            --region ap-south-1 \
-                            --name ecommerce-cluster \
-                            --kubeconfig "${KUBECONFIG}"
-                    '''
-                }
-            }
+                aws eks update-kubeconfig \
+                    --region ap-south-1 \
+                    --name ecommerce-cluster \
+                    --kubeconfig "${KUBECONFIG}"
+            '''
         }
+    }
+}
 
         stage('Verify Cluster Connectivity') {
             steps {
@@ -178,31 +205,50 @@ pipeline {
         // 1. सबसे पहले वेरिएबल्स तैयार करें ताकि आने वाली सभी स्टेजेस इसे पढ़ सकें
         // ====================================================================
         stage('Prepare Environment Variables') {
-            steps {
-                sh '''
+    steps {
+
+        withCredentials([
+            usernamePassword(
+                credentialsId: 'aws-credentials-id',
+                usernameVariable: 'AWS_ACCESS_KEY_ID',
+                passwordVariable: 'AWS_SECRET_ACCESS_KEY'
+            )
+        ]) {
+
+            sh '''
                 set -e
+
                 pwd
                 ls -la
+
                 ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+
                 echo "ACCOUNT_ID=${ACCOUNT_ID}" > "${WORKSPACE}/deploy.env"
                 echo "ECR=${ACCOUNT_ID}.dkr.ecr.ap-south-1.amazonaws.com" >> "${WORKSPACE}/deploy.env"
-                
+
                 if [ "${ACTUAL_BRANCH}" = "main" ]; then
                     NAMESPACE="production"
+
                 elif [ "${ACTUAL_BRANCH}" = "develop" ]; then
                     NAMESPACE="dev"
+
                 elif [ "${ACTUAL_BRANCH}" = "testing" ]; then
                     NAMESPACE="testing"
+
                 else
                     echo "Unknown Branch : ${ACTUAL_BRANCH}"
                     exit 1
                 fi
+
                 echo "NAMESPACE=${NAMESPACE}" >> "${WORKSPACE}/deploy.env"
+
                 echo "===== deploy.env ====="
+
                 cat "${WORKSPACE}/deploy.env"
-                '''
-            }
+            '''
         }
+    }
+}
 
         // ====================================================================
         // 2. अब नेम्सपेस बनाएं (क्योंकि अब ऊपर deploy.env फाइल बन चुकी है)
