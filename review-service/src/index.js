@@ -4,9 +4,11 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-app.get('/health', (req,res)=>res.json({status:'UP'}));
-app.get('/', (req,res)=>res.json({message: 'Review Service'}));
-app.get('/product/:id', (req,res)=>res.json([{rating:5, text:'Exceptional hardware!'}, {rating:4, text:'Good performance'} ]));
+const router = express.Router();
+router.get('/health', (req,res)=>res.status(200).json({status:'UP'})); router.get('/product/:id', (req,res)=>res.json([{rating:5, text:'Exceptional hardware!'}, {rating:4, text:'Good performance'} ]));
 
-const PORT = 3009;
+app.use('/', router);
+app.use('/api/reviews', router);
+
+const PORT = process.env.REVIEW_SERVICE_PORT || 3009;
 app.listen(PORT, '0.0.0.0', () => console.log(`review-service running on ${PORT}`));
