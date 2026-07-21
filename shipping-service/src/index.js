@@ -4,9 +4,11 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-app.get('/health', (req,res)=>res.json({status:'UP'}));
-app.get('/', (req,res)=>res.json({message: 'Shipping Service'}));
-app.get('/tracking/:id', (req,res)=>res.json({status:'Dispatched', location:'Facility A'}));
+const router = express.Router();
+router.get('/health', (req,res)=>res.status(200).json({status:'UP'})); router.get('/tracking/:id', (req,res)=>res.json({status:'Dispatched', location:'Facility A'}));
 
-const PORT = 3012;
+app.use('/', router);
+app.use('/api/shipping', router);
+
+const PORT = process.env.SHIPPING_SERVICE_PORT || 3012;
 app.listen(PORT, '0.0.0.0', () => console.log(`shipping-service running on ${PORT}`));
