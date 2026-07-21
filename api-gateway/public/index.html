@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Enterprise E-Commerce Microservices</title>
     <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+    <script src="/config.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
@@ -193,11 +194,13 @@
                     return cart.value.reduce((acc, i) => acc + (i.price * i.quantity), 0);
                 });
 
+                const getApiUrl = (path) => `${window.ENV?.API_BASE_URL || ''}${path}`;
+
                 const notify = async (msg) => {
                     const id = Date.now();
                     toasts.value.push({id, message: msg});
                     setTimeout(() => { toasts.value = toasts.value.filter(t => t.id !== id); }, 4000);
-                    fetch('/api/notify/email', {
+                    fetch(getApiUrl('/api/notify/email'), {
                         method: 'POST', 
                         headers:{'Content-Type':'application/json'},
                         body: JSON.stringify({message: msg})
@@ -206,28 +209,28 @@
 
                 const fetchProducts = async () => {
                     try {
-                        const res = await fetch('/api/products');
+                        const res = await fetch(getApiUrl('/api/products'));
                         products.value = await res.json();
                     } catch(e) {}
                 };
 
                 const fetchCart = async () => {
                     try {
-                        const res = await fetch('/api/cart');
+                        const res = await fetch(getApiUrl('/api/cart'));
                         cart.value = await res.json();
                     } catch(e) {}
                 };
 
                 const fetchOrders = async () => {
                     try {
-                        const res = await fetch('/api/orders');
+                        const res = await fetch(getApiUrl('/api/orders'));
                         orders.value = await res.json();
                     } catch (e) {}
                 };
 
                 const addToCart = async (product) => {
                     try {
-                        await fetch('/api/cart/add', {
+                        await fetch(getApiUrl('/api/cart/add'), {
                             method: 'POST',
                             headers: {'Content-Type': 'application/json'},
                             body: JSON.stringify(product)
@@ -240,9 +243,9 @@
                 const checkout = async () => {
                     isCheckingOut.value = true;
                     try {
-                        await fetch('/api/payment/process', { method: 'POST' });
-                        await fetch('/api/cart/clear', { method: 'POST' });
-                        const orderRes = await fetch('/api/orders/checkout', {
+                        await fetch(getApiUrl('/api/payment/process'), { method: 'POST' });
+                        await fetch(getApiUrl('/api/cart/clear'), { method: 'POST' });
+                        const orderRes = await fetch(getApiUrl('/api/orders/checkout'), {
                             method: 'POST',
                             headers: {'Content-Type':'application/json'},
                             body: JSON.stringify({ total: cartTotal.value, items: [...cart.value] })
@@ -273,7 +276,7 @@
                     
                     healthStatuses.value = await Promise.all(svcs.map(async s => {
                         try {
-                            const res = await fetch(`/api/${s.c}/health`);
+                            const res = await fetch(getApiUrl(`/api/${s.c}/health`));
                             return { name: s.n, port: s.p, up: res.ok };
                         } catch(e) {
                             return { name: s.n, port: s.p, up: false };
