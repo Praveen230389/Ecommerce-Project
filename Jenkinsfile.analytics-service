@@ -8,8 +8,8 @@ pipeline {
     }
 
     environment {
-        AWS_DEFAULT_REGION = "ap-south-1"
-        MY_SERVICE = "analytics-service"
+        AWS_DEFAULT_REGION = 'ap-south-1'
+        MY_SERVICE = 'analytics-service'
     }
 
     stages {
@@ -21,8 +21,7 @@ pipeline {
 
         stage('Git Checkout') {
             steps {
-                git branch: "${env.BRANCH_NAME}",
-                    url: 'https://github.com/Praveen230389/Ecommerce-Project.git'
+                git branch: "${env.BRANCH_NAME}", url: 'https://github.com/Praveen230389/Ecommerce-Project.git'
                 script {
                     env.ACTUAL_BRANCH = env.BRANCH_NAME
                 }
@@ -30,57 +29,55 @@ pipeline {
         }
 
         stage('Docker Image Build (analytics-service)') {
-    steps {
-        withCredentials([
-            usernamePassword(
-                credentialsId: 'aws-credentials-id',
-                usernameVariable: 'AWS_ACCESS_KEY_ID',
-                passwordVariable: 'AWS_SECRET_ACCESS_KEY'
-            )
-        ]) {
-            script {
-                sh 'docker system prune -f'
-                sh '''
-                    ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-                    LOCAL_ECR_URL="${ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com"
-                    FULL_IMAGE_TAG="${LOCAL_ECR_URL}/${MY_SERVICE}:${ACTUAL_BRANCH}-${BUILD_NUMBER}"
+            steps {
+                withCredentials([
+                    usernamePassword(
+                        credentialsId: 'aws-credentials-id',
+                        usernameVariable: 'AWS_ACCESS_KEY_ID',
+                        passwordVariable: 'AWS_SECRET_ACCESS_KEY'
+                    )
+                ]) {
+                    script {
+                        sh 'docker system prune -f'
+                        sh '''
+                            ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+                            LOCAL_ECR_URL="${ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com"
+                            FULL_IMAGE_TAG="${LOCAL_ECR_URL}/${MY_SERVICE}:${ACTUAL_BRANCH}-${BUILD_NUMBER}"
 
-                    echo "Building image for ${MY_SERVICE}..."
-                    docker build -t Ecommerse/${MY_SERVICE} \
-                        -t ${FULL_IMAGE_TAG} \
-                        -f ${MY_SERVICE}/Dockerfile \
-                        ${MY_SERVICE}/
-                '''
+                            echo "Building image for ${MY_SERVICE}..."
+                            docker build -t Ecommerse/${MY_SERVICE} \
+                                -t ${FULL_IMAGE_TAG} \
+                                -f ${MY_SERVICE}/Dockerfile \
+                                ${MY_SERVICE}/
+                        '''
+                    }
+                }
             }
         }
-    }
-}
 
         stage('AWS ECR Login') {
-    steps {
-        withCredentials([
-            usernamePassword(
-                credentialsId: 'aws-credentials-id',
-                usernameVariable: 'AWS_ACCESS_KEY_ID',
-                passwordVariable: 'AWS_SECRET_ACCESS_KEY'
-            )
-        ]) {
+            steps {
+                withCredentials([
+                    usernamePassword(
+                        credentialsId: 'aws-credentials-id',
+                        usernameVariable: 'AWS_ACCESS_KEY_ID',
+                        passwordVariable: 'AWS_SECRET_ACCESS_KEY'
+                    )
+                ]) {
+                    echo 'Logging into Amazon ECR Registry...'
+                    sh """
+                        ACCOUNT_ID=\$(aws sts get-caller-identity --query Account --output text)
 
-            echo 'Logging into Amazon ECR Registry...'
-
-            sh """
-                ACCOUNT_ID=\$(aws sts get-caller-identity --query Account --output text)
-
-                aws ecr get-login-password \
-                --region ${env.AWS_DEFAULT_REGION} \
-                | docker login \
-                  --username AWS \
-                  --password-stdin \
-                  \${ACCOUNT_ID}.dkr.ecr.${env.AWS_DEFAULT_REGION}.amazonaws.com
-            """
+                        aws ecr get-login-password \
+                            --region ${env.AWS_DEFAULT_REGION} \
+                            | docker login \
+                                --username AWS \
+                                --password-stdin \
+                                \${ACCOUNT_ID}.dkr.ecr.${env.AWS_DEFAULT_REGION}.amazonaws.com
+                    """
+                }
+            }
         }
-    }
-}
 
         stage('Trivy Image Scan') {
             steps {
@@ -93,80 +90,71 @@ pipeline {
         }
 
         stage('Docker Push Image') {
-    steps {
-        withCredentials([
-            usernamePassword(
-                credentialsId: 'aws-credentials-id',
-                usernameVariable: 'AWS_ACCESS_KEY_ID',
-                passwordVariable: 'AWS_SECRET_ACCESS_KEY'
-            )
-        ]) {
+            steps {
+                withCredentials([
+                    usernamePassword(
+                        credentialsId: 'aws-credentials-id',
+                        usernameVariable: 'AWS_ACCESS_KEY_ID',
+                        passwordVariable: 'AWS_SECRET_ACCESS_KEY'
+                    )
+                ]) {
+                    sh '''
+                        ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+                        LOCAL_ECR_URL="${ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com"
 
-            sh '''
-                ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-
-                LOCAL_ECR_URL="${ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com"
-
-                echo "Pushing ${MY_SERVICE} to ECR..."
-
-                docker push ${LOCAL_ECR_URL}/${MY_SERVICE}:${ACTUAL_BRANCH}-${BUILD_NUMBER}
-            '''
+                        echo "Pushing ${MY_SERVICE} to ECR..."
+                        docker push ${LOCAL_ECR_URL}/${MY_SERVICE}:${ACTUAL_BRANCH}-${BUILD_NUMBER}
+                    '''
+                }
+            }
         }
-    }
-}
 
         stage('Load AWS Credentials') {
-    steps {
-        withCredentials([
-            usernamePassword(
-                credentialsId: 'aws-credentials-id',
-                usernameVariable: 'AWS_ACCESS_KEY_ID',
-                passwordVariable: 'AWS_SECRET_ACCESS_KEY'
-            )
-        ]) {
-
-            sh '''
-                echo "=============================================="
-                echo "Loading AWS Credentials"
-                echo "=============================================="
-
-                aws sts get-caller-identity
-            '''
+            steps {
+                withCredentials([
+                    usernamePassword(
+                        credentialsId: 'aws-credentials-id',
+                        usernameVariable: 'AWS_ACCESS_KEY_ID',
+                        passwordVariable: 'AWS_SECRET_ACCESS_KEY'
+                    )
+                ]) {
+                    sh '''
+                        echo "=============================================="
+                        echo "Loading AWS Credentials"
+                        echo "=============================================="
+                        aws sts get-caller-identity
+                    '''
+                }
+            }
         }
-    }
-}
 
         stage('Generate Kubeconfig') {
-    steps {
-        withCredentials([
-            usernamePassword(
-                credentialsId: 'aws-credentials-id',
-                usernameVariable: 'AWS_ACCESS_KEY_ID',
-                passwordVariable: 'AWS_SECRET_ACCESS_KEY'
-            )
-        ]) {
-
-            sh '''
-                export KUBECONFIG="${WORKSPACE}/.kube-config"
-
-                aws eks update-kubeconfig \
-                    --region ap-south-1 \
-                    --name ecommerce-cluster \
-                    --kubeconfig "${KUBECONFIG}"
-            '''
+            steps {
+                withCredentials([
+                    usernamePassword(
+                        credentialsId: 'aws-credentials-id',
+                        usernameVariable: 'AWS_ACCESS_KEY_ID',
+                        passwordVariable: 'AWS_SECRET_ACCESS_KEY'
+                    )
+                ]) {
+                    sh '''
+                        export KUBECONFIG="${WORKSPACE}/.kube-config"
+                        aws eks update-kubeconfig \
+                            --region ap-south-1 \
+                            --name ecommerce-cluster \
+                            --kubeconfig "${KUBECONFIG}"
+                    '''
+                }
+            }
         }
-    }
-}
 
         stage('Verify Cluster Connectivity') {
             steps {
                 sh '''
                     export KUBECONFIG="${WORKSPACE}/.kube-config"
-
                     echo "=============================================="
                     echo "Cluster Information"
                     echo "=============================================="
-
                     kubectl cluster-info
                     kubectl version --short || true
                 '''
@@ -177,11 +165,9 @@ pipeline {
             steps {
                 sh '''
                     export KUBECONFIG="${WORKSPACE}/.kube-config"
-
                     echo "=============================================="
                     echo "Worker Nodes"
                     echo "=============================================="
-
                     kubectl get nodes -o wide
                 '''
             }
@@ -191,82 +177,64 @@ pipeline {
             steps {
                 sh '''
                     export KUBECONFIG="${WORKSPACE}/.kube-config"
-
                     echo "=============================================="
                     echo "Namespaces"
                     echo "=============================================="
-
                     kubectl get ns
                 '''
             }
         }
 
-                // ====================================================================
-        // 1. सबसे पहले वेरिएबल्स तैयार करें ताकि आने वाली सभी स्टेजेस इसे पढ़ सकें
-        // ====================================================================
         stage('Prepare Environment Variables') {
-    steps {
+            steps {
+                withCredentials([
+                    usernamePassword(
+                        credentialsId: 'aws-credentials-id',
+                        usernameVariable: 'AWS_ACCESS_KEY_ID',
+                        passwordVariable: 'AWS_SECRET_ACCESS_KEY'
+                    )
+                ]) {
+                    sh '''
+                        set -e
+                        pwd
+                        ls -la
 
-        withCredentials([
-            usernamePassword(
-                credentialsId: 'aws-credentials-id',
-                usernameVariable: 'AWS_ACCESS_KEY_ID',
-                passwordVariable: 'AWS_SECRET_ACCESS_KEY'
-            )
-        ]) {
+                        ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+                        echo "ACCOUNT_ID=${ACCOUNT_ID}" > "${WORKSPACE}/deploy.env"
+                        echo "ECR=${ACCOUNT_ID}.dkr.ecr.ap-south-1.amazonaws.com" >> "${WORKSPACE}/deploy.env"
 
-            sh '''
-                set -e
+                        if [ "${ACTUAL_BRANCH}" = "main" ]; then
+                            NAMESPACE="production"
+                        elif [ "${ACTUAL_BRANCH}" = "develop" ]; then
+                            NAMESPACE="dev"
+                        elif [ "${ACTUAL_BRANCH}" = "testing" ]; then
+                            NAMESPACE="testing"
+                        else
+                            echo "Unknown Branch : ${ACTUAL_BRANCH}"
+                            exit 1
+                        fi
 
-                pwd
-                ls -la
-
-                ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-
-                echo "ACCOUNT_ID=${ACCOUNT_ID}" > "${WORKSPACE}/deploy.env"
-                echo "ECR=${ACCOUNT_ID}.dkr.ecr.ap-south-1.amazonaws.com" >> "${WORKSPACE}/deploy.env"
-
-                if [ "${ACTUAL_BRANCH}" = "main" ]; then
-                    NAMESPACE="production"
-
-                elif [ "${ACTUAL_BRANCH}" = "develop" ]; then
-                    NAMESPACE="dev"
-
-                elif [ "${ACTUAL_BRANCH}" = "testing" ]; then
-                    NAMESPACE="testing"
-
-                else
-                    echo "Unknown Branch : ${ACTUAL_BRANCH}"
-                    exit 1
-                fi
-
-                echo "NAMESPACE=${NAMESPACE}" >> "${WORKSPACE}/deploy.env"
-
-                echo "===== deploy.env ====="
-
-                cat "${WORKSPACE}/deploy.env"
-            '''
+                        echo "NAMESPACE=${NAMESPACE}" >> "${WORKSPACE}/deploy.env"
+                        echo "===== deploy.env ====="
+                        cat "${WORKSPACE}/deploy.env"
+                    '''
+                }
+            }
         }
-    }
-}
 
-        // ====================================================================
-        // 2. अब नेम्सपेस बनाएं (क्योंकि अब ऊपर deploy.env फाइल बन चुकी है)
-        // ====================================================================
         stage('Create Production Namespace') {
             steps {
                 sh '''
-                set -a
-                . "${WORKSPACE}/deploy.env"
-                set +a
-                export KUBECONFIG="${WORKSPACE}/.kube-config"
-                kubectl create namespace "${NAMESPACE}" \
-                    --dry-run=client -o yaml | kubectl apply -f -
+                    set -a
+                    . "${WORKSPACE}/deploy.env"
+                    set +a
+                    export KUBECONFIG="${WORKSPACE}/.kube-config"
+                    kubectl create namespace "${NAMESPACE}" \
+                        --dry-run=client -o yaml | kubectl apply -f -
                 '''
             }
         }
 
-        // Apply global core infrastructure after namespace creation
         stage('Update & Apply Global Core Infrastructure') {
             steps {
                 sh '''
@@ -297,23 +265,18 @@ pipeline {
             steps {
                 sh '''
                     set -e
-
                     set -a
                     . "${WORKSPACE}/deploy.env"
                     set +a
 
                     if [ -d "./${MY_SERVICE}/k8s" ]; then
                         echo "Updating ${MY_SERVICE} manifests..."
-
                         find ./${MY_SERVICE}/k8s -name "*.yaml" \
                             -exec sed -i "s|\\${NAMESPACE}|${NAMESPACE}|g" {} +
-
                         find ./${MY_SERVICE}/k8s -name "*.yaml" \
                             -exec sed -i "s|\\${SERVICE_NAME}|${MY_SERVICE}|g" {} +
-
                         find ./${MY_SERVICE}/k8s -name "*.yaml" \
                             -exec sed -i "s|\\${ECR_REGISTRY}|${ECR}|g" {} +
-
                         find ./${MY_SERVICE}/k8s -name "*.yaml" \
                             -exec sed -i "s|\\${IMAGE_TAG}|${ACTUAL_BRANCH}-${BUILD_NUMBER}|g" {} +
                     fi
@@ -342,7 +305,6 @@ pipeline {
                     . "${WORKSPACE}/deploy.env"
                     set +a
                     export KUBECONFIG="${WORKSPACE}/.kube-config"
-
                     kubectl get deployment -n ${NAMESPACE}
                 '''
             }
@@ -355,7 +317,6 @@ pipeline {
                     . "${WORKSPACE}/deploy.env"
                     set +a
                     export KUBECONFIG="${WORKSPACE}/.kube-config"
-
                     kubectl get rs -n ${NAMESPACE}
                 '''
             }
@@ -368,7 +329,6 @@ pipeline {
                     . "${WORKSPACE}/deploy.env"
                     set +a
                     export KUBECONFIG="${WORKSPACE}/.kube-config"
-
                     kubectl get pods -n ${NAMESPACE} -o wide
                 '''
             }
@@ -381,7 +341,6 @@ pipeline {
                     . "${WORKSPACE}/deploy.env"
                     set +a
                     export KUBECONFIG="${WORKSPACE}/.kube-config"
-
                     kubectl get pods -n ${NAMESPACE} \
                         --field-selector=status.phase=Pending \
                         -o name | while read pod
@@ -402,7 +361,6 @@ pipeline {
                     . "${WORKSPACE}/deploy.env"
                     set +a
                     export KUBECONFIG="${WORKSPACE}/.kube-config"
-
                     kubectl get svc -n ${NAMESPACE}
                 '''
             }
@@ -415,7 +373,6 @@ pipeline {
                     . "${WORKSPACE}/deploy.env"
                     set +a
                     export KUBECONFIG="${WORKSPACE}/.kube-config"
-
                     kubectl get endpoints -n ${NAMESPACE}
                 '''
             }
@@ -428,7 +385,6 @@ pipeline {
                     . "${WORKSPACE}/deploy.env"
                     set +a
                     export KUBECONFIG="${WORKSPACE}/.kube-config"
-
                     kubectl get ingress -n ${NAMESPACE}
                     kubectl describe ingress -n ${NAMESPACE} || true
                 '''
@@ -442,7 +398,6 @@ pipeline {
                     . "${WORKSPACE}/deploy.env"
                     set +a
                     export KUBECONFIG="${WORKSPACE}/.kube-config"
-
                     kubectl get events \
                         -n ${NAMESPACE} \
                         --sort-by=.metadata.creationTimestamp | tail -100 || true
@@ -456,9 +411,7 @@ pipeline {
                     set -a
                     . "${WORKSPACE}/deploy.env"
                     set +a
-
                     export KUBECONFIG="${WORKSPACE}/.kube-config"
-
                     kubectl rollout status deployment/${MY_SERVICE} \
                         -n "${NAMESPACE}" \
                         --timeout=60s || true
@@ -473,27 +426,17 @@ pipeline {
                     . "${WORKSPACE}/deploy.env"
                     set +a
                     export KUBECONFIG="${WORKSPACE}/.kube-config"
-
                     echo "==========================================="
                     echo "FINAL DEPLOYMENT STATUS"
                     echo "==========================================="
-
                     kubectl get nodes
-
                     echo ""
-
                     kubectl get deployment -n ${NAMESPACE}
-
                     echo ""
-
                     kubectl get pods -n ${NAMESPACE} -o wide
-
                     echo ""
-
                     kubectl get svc -n ${NAMESPACE}
-
                     echo ""
-
                     kubectl get ingress -n ${NAMESPACE}
                 '''
             }
@@ -510,4 +453,3 @@ pipeline {
         }
     }
 }
-
