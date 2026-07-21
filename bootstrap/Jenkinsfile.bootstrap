@@ -9,11 +9,6 @@ pipeline {
     
     environment {
         AWS_DEFAULT_REGION = "ap-south-1"
-        
-        // 🔐 क्लस्टर एडमिन क्रेडेंशियल्स
-        AWS_CREDENTIALS = credentials('aws-credentials-id')
-        AWS_ACCESS_KEY_ID = "${env.AWS_CREDENTIALS_USR}"
-        AWS_SECRET_ACCESS_KEY = "${env.AWS_CREDENTIALS_PSW}"
     }
     
     stages {
@@ -26,6 +21,13 @@ pipeline {
         
         stage('Generate EKS Kubeconfig') {
             steps {
+                withCredentials([
+usernamePassword(
+credentialsId:'aws-credentials-id',
+usernameVariable:'AWS_ACCESS_KEY_ID',
+passwordVariable:'AWS_SECRET_ACCESS_KEY'
+)
+]){
                 sh '''
                     export KUBECONFIG="${WORKSPACE}/.kube-config"
                     aws eks update-kubeconfig \
