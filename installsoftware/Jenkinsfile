@@ -49,7 +49,6 @@ pipeline {
                     echo "Installing Docker..."
                     echo "========================================"
 
-                    sudo apt update
                     sudo apt install -y ca-certificates curl gnupg lsb-release
                     sudo mkdir -p /etc/apt/keyrings
                     sudo rm -f /etc/apt/keyrings/docker.gpg
@@ -79,7 +78,6 @@ pipeline {
                     echo "Installing / Verifying AWS CLI v2"
                     echo "========================================"
 
-                    sudo apt update
                     sudo apt install -y unzip curl
 
                     # Remove broken symlinks if they exist
@@ -125,8 +123,6 @@ pipeline {
                     echo "Installing kubectl..."
                     echo "========================================"
 
-                    sudo apt update
-
                     sudo snap install kubectl --classic
 
                     echo "Verifying kubectl..."
@@ -141,7 +137,6 @@ pipeline {
         stage('Helm Install') {
             steps {
                 sh '''
-                    sudo apt update
                     curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
                     chmod 700 get_helm.sh
                     ./get_helm.sh
@@ -153,7 +148,6 @@ pipeline {
         stage('Add Helm repo') {
             steps {
                 sh '''
-                    sudo apt update
                     helm repo add eks https://aws.github.io/eks-charts
                     helm repo update
                     echo "Helm Repo Added Successfully"
@@ -168,7 +162,6 @@ pipeline {
                     echo "Installing Terraform..."
                     echo "========================================"
 
-                    sudo apt update
                     sudo apt install -y wget unzip && wget https://releases.hashicorp.com/terraform/1.8.0/terraform_1.8.0_linux_amd64.zip && unzip terraform_1.8.0_linux_amd64.zip && sudo mv terraform /usr/local/bin/ && terraform version
                     echo "Verifying Terraform..."
                     terraform version
@@ -184,7 +177,6 @@ pipeline {
                     echo "Installing Trivy..."
                     echo "========================================"
 
-                    sudo apt update
                     sudo apt install -y wget gnupg lsb-release
                     wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key \
                         | gpg --dearmor \
@@ -205,7 +197,6 @@ pipeline {
                     echo "Installing Ansible..."
                     echo "========================================"
 
-                    sudo apt update
                     sudo apt install -y software-properties-common
                     sudo add-apt-repository --yes --update ppa:ansible/ansible
                     sudo apt install -y ansible
@@ -227,8 +218,6 @@ pipeline {
                       echo "========================================"
                       echo "Giving Docker Commands..."
                       echo "========================================"
-
-                      sudo apt update
 
                       sudo chmod 666 /var/run/docker.sock
 
