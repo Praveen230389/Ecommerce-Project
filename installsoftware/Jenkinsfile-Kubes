@@ -10,11 +10,6 @@ pipeline {
 
     environment {
         AWS_DEFAULT_REGION = "ap-south-1"
-
-        // Global-level credentials
-        AWS_CREDENTIALS = credentials('aws-credentials-id')
-        AWS_ACCESS_KEY_ID = "${env.AWS_CREDENTIALS_USR}"
-        AWS_SECRET_ACCESS_KEY = "${env.AWS_CREDENTIALS_PSW}"
     }
 
     stages {
