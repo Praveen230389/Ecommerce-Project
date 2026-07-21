@@ -4,7 +4,11 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-app.get('/health', (req,res)=>res.json({status:'UP'})); app.get('/stock/:id', (req,res)=>res.json({productId: req.params.id, stock: Math.floor(Math.random()*50)}));
+const router = express.Router();
+router.get('/health', (req,res)=>res.status(200).json({status:'UP'})); router.get('/stock/:id', (req,res)=>res.json({productId: req.params.id, stock: Math.floor(Math.random()*50)}));
 
-const PORT = 3007;
+app.use('/', router);
+app.use('/api/inventory', router);
+
+const PORT = process.env.INVENTORY_SERVICE_PORT || 3007;
 app.listen(PORT, '0.0.0.0', () => console.log(`inventory-service running on ${PORT}`));
