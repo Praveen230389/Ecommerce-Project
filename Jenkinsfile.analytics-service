@@ -28,7 +28,7 @@ pipeline {
             }
         }
 
-        stage('Docker Image Build (analytics-service)') {
+        stage('Docker Image Build') {
             steps {
                 withCredentials([
                     usernamePassword(
@@ -405,7 +405,7 @@ pipeline {
             }
         }
 
-        stage('Rollout Status - analytics-Service') {
+        stage('Rollout Status') {
             steps {
                 sh '''
                     set -a
