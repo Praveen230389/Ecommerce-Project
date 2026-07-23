@@ -19,5 +19,5 @@ router.post('/clear', (req,res)=>{ cart=[]; res.json({success:true}) });
 app.use('/', router);
 app.use('/api/cart', router);
 
-const PORT = process.env.CART_SERVICE_PORT || 3004;
+const PORT = process.env.PORT || 3004;
 app.listen(PORT, '0.0.0.0', () => console.log(`cart-service running on ${PORT}`));
