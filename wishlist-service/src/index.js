@@ -10,5 +10,5 @@ router.get('/health', (req,res)=>res.status(200).json({status:'UP'})); let list=
 app.use('/', router);
 app.use('/api/wishlist', router);
 
-const PORT = process.env.WISHLIST_SERVICE_PORT || 3010;
+const PORT = process.env.PORT || 3010;
 app.listen(PORT, '0.0.0.0', () => console.log(`wishlist-service running on ${PORT}`));
