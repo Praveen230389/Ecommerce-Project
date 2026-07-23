@@ -17,5 +17,5 @@ router.get('/', (req,res)=>res.json(orders));
 app.use('/', router);
 app.use('/api/orders', router);
 
-const PORT = process.env.ORDER_SERVICE_PORT || 3005;
+const PORT = process.env.PORT || 3005;
 app.listen(PORT, '0.0.0.0', () => console.log(`order-service running on ${PORT}`));
