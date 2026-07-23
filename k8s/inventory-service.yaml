@@ -24,7 +24,7 @@ spec:
         image: REPLACE_WITH_AWS_ECR_URL/inventory-service:latest
         imagePullPolicy: Always
         ports:
-        - containerPort: 8080  # हमारी प्रोडक्शन डॉकरफाइल का स्टैंडर्ड पोर्ट
+        - containerPort: 3007  # हमारी प्रोडक्शन डॉकरफाइल का स्टैंडर्ड पोर्ट
         env:
         - name: S3_BUCKET_NAME
           value: "praveen-ecommerce-bucket-12345"
@@ -48,4 +48,4 @@ spec:
   ports:
     - protocol: TCP
       port: 80
-      targetPort: 8080
+      targetPort: 3007
