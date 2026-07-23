@@ -18,5 +18,5 @@ router.get('/:id', (req,res)=>res.json(items.find(i=>i.id == req.params.id)));
 app.use('/', router);
 app.use('/api/products', router);
 
-const PORT = process.env.PRODUCT_SERVICE_PORT || 3003;
+const PORT = process.env.PORT || 3003;
 app.listen(PORT, '0.0.0.0', () => console.log(`product-service running on ${PORT}`));
