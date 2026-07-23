@@ -29,7 +29,10 @@ spec:
         image: ${ECR_REGISTRY}/${SERVICE_NAME}:${IMAGE_TAG}
         imagePullPolicy: Always
         ports:
-        - containerPort: 3009  # हमारी Dockerfile का इंटरनल पोर्ट 3009 था, तो कूबरनेटीस में भी यही रहेगा
+        - containerPort: 3009
+        env:
+          - name: PORT
+            value: "3009"
         
         # इंटरव्यू बोनस: रिसोर्स लिमिट्स (इसके बिना इंटरव्यूअर रिजेक्ट कर देते हैं)
         resources:
