@@ -24,7 +24,7 @@ spec:
         image: REPLACE_WITH_AWS_ECR_URL/payment-service:latest
         imagePullPolicy: Always
         ports:
-        - containerPort: 8080  # हमारी प्रोडक्शन डॉकरफाइल का स्टैंडर्ड पोर्ट
+        - containerPort: 3006  # हमारी प्रोडक्शन डॉकरफाइल का स्टैंडर्ड पोर्ट
         resources:
           limits:
             cpu: "200m"
@@ -45,4 +45,4 @@ spec:
   ports:
     - protocol: TCP
       port: 80
-      targetPort: 8080
+      targetPort: 3006
