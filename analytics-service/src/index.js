@@ -10,5 +10,5 @@ router.get('/health', (req,res)=>res.status(200).json({status:'UP'})); router.ge
 app.use('/', router);
 app.use('/api/analytics', router);
 
-const PORT = process.env.ANALYTICS_SERVICE_PORT || 3015;
+const PORT = process.env.PORT || 3015;
 app.listen(PORT, '0.0.0.0', () => console.log(`analytics-service running on ${PORT}`));
