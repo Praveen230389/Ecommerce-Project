@@ -10,5 +10,5 @@ router.get('/health', (req,res)=>res.status(200).json({status:'UP'})); router.po
 app.use('/', router);
 app.use('/api/notify', router);
 
-const PORT = process.env.NOTIFICATION_SERVICE_PORT || 3008;
+const PORT = process.env.PORT || 3008;
 app.listen(PORT, '0.0.0.0', () => console.log(`notification-service running on ${PORT}`));
