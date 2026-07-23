@@ -15,27 +15,36 @@ pipeline {
     stages {
 
         stage('EKS kubeconfig') {
-            steps {
-                withCredentials([
-                    usernamePassword(
-                        credentialsId: 'aws-credentials-id',
-                        usernameVariable: 'AWS_ACCESS_KEY_ID',
-                        passwordVariable: 'AWS_SECRET_ACCESS_KEY'
-                    )
-                ]) {
-                    sh '''
-                        sudo -E -u jenkins mkdir -p /var/lib/jenkins/.kube
+    steps {
+        withCredentials([
+            usernamePassword(
+                credentialsId: 'aws-credentials-id',
+                usernameVariable: 'AWS_ACCESS_KEY_ID',
+                passwordVariable: 'AWS_SECRET_ACCESS_KEY'
+            )
+        ]) {
+            sh '''
+                # Create kubeconfig directory for Jenkins user
+                sudo -u jenkins mkdir -p /var/lib/jenkins/.kube
 
-                        sudo -E -u jenkins aws eks update-kubeconfig \
-                            --region ${AWS_DEFAULT_REGION} \
-                            --name ecommerce-cluster
+                # Generate/Update permanent kubeconfig
+                sudo -E -u jenkins aws eks update-kubeconfig \
+                    --region ${AWS_DEFAULT_REGION} \
+                    --name ecommerce-cluster \
+                    --kubeconfig /var/lib/jenkins/.kube/config
 
-                        sudo -E -u jenkins kubectl config current-context
-                        sudo -E -u jenkins kubectl get nodes
-                    '''
-                }
-            }
+                # Verify configuration
+                sudo -u jenkins kubectl \
+                    --kubeconfig /var/lib/jenkins/.kube/config \
+                    config current-context
+
+                sudo -u jenkins kubectl \
+                    --kubeconfig /var/lib/jenkins/.kube/config \
+                    get nodes
+            '''
         }
+    }
+}
 
         stage('AWS Load Balancer Controller Install') {
             steps {
