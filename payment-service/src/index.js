@@ -10,5 +10,5 @@ router.get('/health', (req,res)=>res.status(200).json({status:'UP'})); router.po
 app.use('/', router);
 app.use('/api/payment', router);
 
-const PORT = process.env.PAYMENT_SERVICE_PORT || 3006;
+const PORT = process.env.PORT || 3006;
 app.listen(PORT, '0.0.0.0', () => console.log(`payment-service running on ${PORT}`));
