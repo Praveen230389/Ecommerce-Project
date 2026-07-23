@@ -29,7 +29,10 @@ spec:
         image: ${ECR_REGISTRY}/${SERVICE_NAME}:${IMAGE_TAG}
         imagePullPolicy: Always
         ports:
-        - containerPort: 3005 # हमारी Dockerfile का इंटरनल पोर्ट 3005 था, तो कूबरनेटीस में भी यही रहेगा
+        - containerPort: 3005
+        env:
+          - name: PORT
+            value: "3005"
         env:
         - name: DB_HOST
           value: "ecommerce-db.czqwkqwuand4.ap-south-1.rds.amazonaws.com"
