@@ -93,7 +93,7 @@ const router = express.Router();
 app.use('/', router);
 app.use('/api/\${apiName}', router);
 
-const PORT = process.env.\${svc.name.replace('-', '_').toUpperCase()}_PORT || \${svc.port};
+const PORT = process.env.PORT || ${svc.port};
 app.listen(PORT, '0.0.0.0', () => console.log(\\\\\`\${svc.name} running on \\\\\${PORT}\\\\\`));\\\`;
 `);
 
